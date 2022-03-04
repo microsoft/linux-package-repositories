@@ -1,0 +1,20 @@
+name: Lint repoaudit
+
+on:
+  pull_request:
+  push:
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+      - name: Setup Python
+        uses: actions/setup-python@v3
+      - name: Install dependencies
+        run: |
+          cd repoaudit && pip install -r dev_requirements.txt
+      - name: Check flake8
+        run: |
+          cd repoaudit && flake8 --config .flake8.cfg .
