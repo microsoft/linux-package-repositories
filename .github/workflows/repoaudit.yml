@@ -1,0 +1,42 @@
+name: Repo Auditor
+
+on:
+  workflow_dispatch:
+    inputs:
+      url:
+        description: "URL (e.g. 'https://packages.microsoft.com/repos/azure-cli/')"
+        required: true
+      repo_type:
+        type: choice
+        options:
+          - apt
+          - yum
+      recursive:
+        type: boolean
+      dists:
+        description: "Distributions (comma separated)"
+
+jobs:
+  validate_repository:
+    runs-on: ubuntu-latest
+    env:
+      recursive: ${{ fromJSON('["", "-r"]')[github.event.inputs.recursive == 'true'] }}
+      dists: ${{ github.event.inputs.dists }}
+      url: ${{ github.event.inputs.url }}
+      repo_type: ${{ github.event.inputs.repo_type }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+      - name: Setup Python
+        uses: actions/setup-python@v3
+      - name: Install repoaudit
+        run: |
+          cd repoaudit && pip install -e .
+      - name: Run repoaudit
+        run: |
+          if [[ ! -z "$dists" ]]; then
+            dist_opt="--dists=$dists"
+          else
+            dist_opt=""
+          fi
+          repoaudit $repo_type $recursive $dist_opt $url
