@@ -1,5 +1,5 @@
 # Microsoft Linux Package Repositories
-This repository is intended to communicate status of [packages.microsoft.com](https://packages.microsoft.com) and to receive feedback on the service. Issues can be filed in the [issues](https://github.com/microsoft/linux-package-reposotories/issues) page. For security issues, refer to [SECURITY.md](security.md)
+This repository is intended to communicate status of [packages.microsoft.com](https://packages.microsoft.com) and to receive feedback on the service. Issues can be filed in the [issues](https://github.com/microsoft/linux-package-reposotories/issues) page. For security issues, refer to [SECURITY.md](SECURITY.md).
 
 ## Contributing
 
