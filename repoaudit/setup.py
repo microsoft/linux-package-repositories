@@ -15,6 +15,7 @@ setup(
     install_requires=[
         "click",
         "python-debian",
+        "requests",
     ],
     py_modules=['repoaudit'],
     entry_points={

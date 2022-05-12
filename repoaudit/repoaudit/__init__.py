@@ -40,16 +40,21 @@ def main() -> None:
 @main.command()
 @recursive_option
 @click.argument("url")
-@click.option("--dist", multiple=True)
-def apt(recursive: bool, url: str, dist: List[str]) -> None:
+@click.option("--dists", help="Comma separated list of distributions.")
+def apt(recursive: bool, url: str, dists: str) -> None:
     """Validate an apt repository at URL."""
     if recursive:
         urls = _get_repo_urls(url)
     else:
         urls = [url]
 
+    if dists:
+        dist_set = set(dists.split(","))
+    else:
+        dist_set = None
+
     for repo_url in urls:
-        check_apt_repo(repo_url, set(dist))
+        check_apt_repo(repo_url, dist_set)
 
 
 @main.command()
