@@ -1,29 +1,29 @@
 ---
 name: Report an issue
 about: Help us improve our service by reporting issues you are experiencing.
-title: ''
-labels: bug
+title: 'Report an issue'
+labels: 
 assignees: ''
 
 ---
 
 **Describe the issue**
-A clear and concise description of what is the issue.
-
-**Expected result vs actual result**
+<!-- A clear and concise description of what is the issue. -->
 
 **When did the issue occur?**
-Be as accurate as you can.
+<!-- Be as accurate as you can. -->
 
-**What package did you attempt to install, and from which repo?**
+**If appplicable, what package did you attempt to install, and from which repo?**
 
-**What error did you get?**
+**Steps to Reproduce**
+<!-- Steps to reproduce the behavior (if applicable) -->
 
-**To Reproduce**
-Steps to reproduce the behavior (if applicable):
+**Actual Result**
+
+**Expected Result**
 
 **Screenshots**
-If applicable, add screenshots to help explain your problem.
+<!-- If applicable, add screenshots to help explain your problem. -->
 
 **Additional context**
-Add any other context about the problem here.
+<!-- Add any other context about the problem here. -->
