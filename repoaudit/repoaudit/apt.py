@@ -104,8 +104,7 @@ def check_apt_repo(url: str, dists: Optional[Set[str]]) -> bool:
             errors.add(url, RepoErrors.DEFAULT,
                 f"Could not determine dists from {url}: {e}"
             )
-            return output_result2(proc_packages, errors)
-
+            return output_result(proc_packages, errors)
 
     click.echo(f"Checking dists: {', '.join(dists)}")
 
