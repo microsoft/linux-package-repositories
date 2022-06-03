@@ -28,16 +28,42 @@ class MultiHash:
         return self.hashers[alg].hexdigest()
 
 
-def output_result(proc_packages: int, errors: List[str]) -> bool:
+class RepoErrors:
+    DEFAULT = "default"
+    def __init__(self) -> None:
+        self.errors = dict()
+
+    def add(self, repo : str, dist : str, error : Optional[str]) -> None:
+        if repo not in self.errors:
+            self.errors[repo] = dict()
+        if dist not in self.errors[repo]:
+            self.errors[repo][dist] = []
+        if error is not None:
+            self.errors[repo][dist].append(error.replace('\n', ' ').replace('\r', '').rstrip())
+    def error_count(self) -> int:
+        count = 0
+        for _, dists in self.errors.items():
+            for _, errors in dists.items():
+                count += len(errors)
+        return count
+
+    def get_output(self) -> str:
+        output = ""
+        output += f"[repo_count: {len(self.errors)}]\n"
+        for repo, dists in self.errors.items():
+            output += f"{repo} [dist_count: {len(dists)}]\n"
+            for dist, errors in dists.items():
+                output += f"{dist} [error_count: {len(errors)}]\n"
+                if errors:
+                    output += ("\n").join(errors) + "\n"
+        return output
+
+
+def output_result(proc_packages: int, errors: RepoErrors) -> bool:
     """Output number of packages processed and errors."""
     click.echo(f"Checked {proc_packages} package(s).")
-    if errors:
-        click.echo(f"{len(errors)} errors found:\n" + ("\n").join(errors))
-        return False
-    else:
-        click.echo("No errors detected.")
-        return True
-
+    click.echo(errors.get_output())
+    return errors.error_count() == 0
 
 def urljoin(*paths: str) -> str:
     """Join together a set of url components."""

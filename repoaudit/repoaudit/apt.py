@@ -1,4 +1,5 @@
 from distutils.command import check
+from distutils.log import error
 import re
 import zlib
 from typing import Optional, Set, List
@@ -7,7 +8,7 @@ import click
 from debian.deb822 import Packages, Release
 from requests.exceptions import HTTPError
 
-from .utils import MultiHash, get_url, output_result, urljoin
+from .utils import MultiHash, RepoErrors, get_url, output_result, urljoin
 
 CHECKSUMS = {
     "MD5sum": "md5",
@@ -43,7 +44,8 @@ def _packages_file(base_url: str) -> str:
             raise e
 
 
-def check_apt_repo_metadata(dist_url: str, release_file : Release, errors: List[str]):
+def check_apt_repo_metadata(url : str, dist : str, release_file : Release, errors: RepoErrors):
+    dist_url = urljoin(url, "dists", dist)
     checksum_types = {key : CHECKSUMS[key] for key in CHECKSUMS.keys() if key in release_file}
 
     files = dict()
@@ -55,7 +57,7 @@ def check_apt_repo_metadata(dist_url: str, release_file : Release, errors: List[
             files[filename][key] = file_def[key.lower()]
 
     if not files:
-        errors.append(
+        errors.add(url, dist,
             urljoin(dist_url, "Release") + " file malformed"
         )
 
@@ -67,7 +69,7 @@ def check_apt_repo_metadata(dist_url: str, release_file : Release, errors: List[
             response = get_url(f"{file_url}", stream=True)
         except HTTPError as e:
             if f"{file_name}.gz" not in files:
-                errors.append(
+                errors.add(url, dist,
                     f"Could not access file at {e.respose.url} : {e}"
                 )
             continue
@@ -77,12 +79,13 @@ def check_apt_repo_metadata(dist_url: str, release_file : Release, errors: List[
         
         for key, alg in checksum_types.items():
             if multihash.hexdigest(alg) != checksums[key]:
-                errors.append(
+                errors.add(url, dist,
                     f"{key} checksum mismatch for '{file_name}'. "
                     f"Expected '{checksums[key]}' but received "
                     f"'{multihash.hexdigest(alg)}'."
                 )
-    if errors:
+
+    if errors.error_count() > 0:
         click.echo("Metadata check failed")
     else:
         click.echo("Metadata check successful")
@@ -91,47 +94,47 @@ def check_apt_repo_metadata(dist_url: str, release_file : Release, errors: List[
 def check_apt_repo(url: str, dists: Optional[Set[str]]) -> bool:
     """Validate an apt repo."""
     click.echo(f"Validating apt repo at {url}...")
-    errors = []
+    errors = RepoErrors()
     proc_packages = 0
 
     if not dists:
         try:
             dists = _find_dists(url)
         except HTTPError as e:
-            errors.append(
+            errors.add(url, RepoErrors.DEFAULT,
                 f"Could not determine dists from {url}: {e}"
             )
-            output_result(proc_packages, errors)
-            return False
+            return output_result2(proc_packages, errors)
 
 
     click.echo(f"Checking dists: {', '.join(dists)}")
 
-    try:
-        for dist in dists:
+    for dist in dists:
+        try:
+            errors.add(url, dist, None) # add errors entry with no errors (yet)
             dist_url = urljoin(url, "dists", dist)
             release_url = urljoin(dist_url, "Release")
             
             try:
                 release = get_url(release_url).text
             except HTTPError as e:
-                errors.append(
+                errors.add(url, dist,
                     f"Could not access Release file at {e.response.url}: {e}"
                 )
                 continue
-            
+
             try:
                 release_file = Release(release)
             except Exception as e:
-                errors.append(
+                errors.add(url, dist,
                     f"{release_url} file malformed"
                 )
                 continue
-            
-            check_apt_repo_metadata(dist_url, release_file, errors)
+
+            check_apt_repo_metadata(url, dist, release_file, errors)
 
             if "Components" not in release_file and "Architectures" not in release_file:
-                errors.append(
+                errors.add(url, dist,
                     f"{release_url} file malformed"
                 )
                 continue
@@ -145,7 +148,7 @@ def check_apt_repo(url: str, dists: Optional[Set[str]]) -> bool:
                         packages = _packages_file(urljoin(dist_url, comp, f"binary-{arch}"))
                     except HTTPError as e:
                         file_url = urljoin(dist_url, comp, f"binary-{arch}", "Packages")
-                        errors.append(
+                        errors.add(url, dist,
                             f"Could not access Packages file at {e.response.url}: {e}"
                         )
                         continue
@@ -167,7 +170,7 @@ def check_apt_repo(url: str, dists: Optional[Set[str]]) -> bool:
 
                             if "Filename" not in package:
                                 file_url = urljoin(dist_url, comp, f"binary-{arch}", "Packages")
-                                errors.append(
+                                errors.add(url, dist,
                                     f"{file_url} file has a malformed package entry for package #{package_num}"
                                 )
                                 continue
@@ -177,7 +180,7 @@ def check_apt_repo(url: str, dists: Optional[Set[str]]) -> bool:
                             try:
                                 response = get_url(f"{file_url}", stream=True)
                             except HTTPError as e:
-                                errors.append(
+                                errors.add(url, dist,
                                     f"Could not access package at {e.response.url}: {e}"
                                 )
                                 continue
@@ -187,23 +190,21 @@ def check_apt_repo(url: str, dists: Optional[Set[str]]) -> bool:
 
                             for key, alg in checksum_types.items():
                                 if multihash.hexdigest(alg) != package[key]:
-                                    errors.append(
+                                    errors.add(url, dist,
                                         f"{key} checksum mismatch for '{package['Filename']}'. "
                                         f"Expected '{package[key]}' but received "
                                         f"'{multihash.hexdigest(alg)}'."
                                     )
                             proc_packages += 1
                             package_num += 1
-    except HTTPError as e:
-        click.echo(f"Error when attempting to access {e.response.url}: {e}", err=True)
-        output_result(proc_packages, errors)
-        return False
-    except Exception as e:
-        errors.append(f"{e}")
-        output_result(proc_packages, errors)
-        return False
-    except KeyboardInterrupt:
-        output_result(proc_packages, errors)
-        raise
+        except HTTPError as e:
+            errors.add(url, dist,
+                f"Error when attempting to access {e.response.url}: {e}", err=True
+            )
+        except Exception as e:
+            errors.add(url, dist, f"Unknown error occured: {e}")
+        except KeyboardInterrupt:
+            output_result(proc_packages, errors)
+            raise
 
     return output_result(proc_packages, errors)
