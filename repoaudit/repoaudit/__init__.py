@@ -1,3 +1,5 @@
+#TODO: have script output to file
+
 import re
 from typing import List
 
@@ -5,7 +7,7 @@ import click
 from requests.exceptions import HTTPError
 
 from .apt import check_apt_repo
-from .utils import get_url
+from .utils import RepoErrors, get_url, output_result
 from .yum import check_yum_repo
 
 recursive_option = click.option(
@@ -15,6 +17,14 @@ recursive_option = click.option(
     help=(
         "Attempt to recursively check repos. Requires URL to point to a directory "
         "listing with links to the repos."
+    ),
+)
+
+file_option = click.option(
+    "--output",
+    "-o",
+    help=(
+        "Output results to a specified file"
     ),
 )
 
@@ -41,7 +51,8 @@ def main() -> None:
 @recursive_option
 @click.argument("url")
 @click.option("--dists", help="Comma separated list of distributions.")
-def apt(recursive: bool, url: str, dists: str) -> None:
+@file_option
+def apt(recursive: bool, url: str, dists: str, output : str) -> None:
     """Validate an apt repository at URL."""
     if recursive:
         urls = _get_repo_urls(url)
@@ -52,20 +63,47 @@ def apt(recursive: bool, url: str, dists: str) -> None:
         dist_set = set(dists.split(","))
     else:
         dist_set = None
+    
+    if output:
+        file = open(output, "w")
+    else:
+        file = None
+    
+    errors = RepoErrors()
 
     for repo_url in urls:
-        check_apt_repo(repo_url, dist_set)
+        if not check_apt_repo(repo_url, dist_set, errors):
+            break
+    
+    output_result(errors, file)
+    
+    if file:
+        file.close()
 
 
 @main.command()
 @recursive_option
 @click.argument("url")
-def yum(recursive: bool, url: str) -> None:
+@file_option
+def yum(recursive: bool, url: str, output : str) -> None:
     """Validate a yum repository at URL."""
     if recursive:
         urls = _get_repo_urls(url)
     else:
         urls = [url]
+    
+    if output:
+        file = open(output, "w")
+    else:
+        file = None
+    
+    errors = RepoErrors()
 
     for repo_url in urls:
-        check_yum_repo(repo_url)
+        if not check_yum_repo(repo_url, errors):
+            break
+    
+    output_result(errors, file)
+
+    if file:
+        file.close()

@@ -40,11 +40,19 @@ class RepoErrors:
             self.errors[repo][dist] = []
         if error is not None:
             self.errors[repo][dist].append(error.replace('\n', ' ').replace('\r', '').rstrip())
-    def error_count(self) -> int:
+    def error_count(self, repo: Optional[str] = None, dist: Optional[str] = None) -> int:
         count = 0
-        for _, dists in self.errors.items():
-            for _, errors in dists.items():
-                count += len(errors)
+        if repo:
+            if dist:
+                count += len(self.errors[repo][dist])
+            else:
+                for _, errors in self.errors[repo].items():
+                    count += len(errors)
+        else:
+            for _, dists in self.errors.items():
+                for _, errors in dists.items():
+                    count += len(errors)
+
         return count
 
     def get_output(self) -> str:
@@ -59,11 +67,18 @@ class RepoErrors:
         return output
 
 
-def output_result(proc_packages: int, errors: RepoErrors) -> bool:
+def output_result(errors: RepoErrors, file) -> bool:
     """Output number of packages processed and errors."""
-    click.echo(f"Checked {proc_packages} package(s).")
-    click.echo(errors.get_output())
+    # click.echo(f"Checked {proc_packages} package(s).")
+    text_output = errors.get_output()
+    if file is not None:
+        file.write(text_output)
+    else:
+        click.echo(text_output)
     return errors.error_count() == 0
+
+def package_output(proc_packages : int) -> None:
+    click.echo(f"Checked {proc_packages} package(s).")
 
 def urljoin(*paths: str) -> str:
     """Join together a set of url components."""

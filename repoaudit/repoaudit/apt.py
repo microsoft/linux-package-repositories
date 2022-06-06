@@ -1,5 +1,6 @@
 from distutils.command import check
 from distutils.log import error
+from io import TextIOWrapper
 import re
 import zlib
 from typing import Optional, Set, List
@@ -8,7 +9,7 @@ import click
 from debian.deb822 import Packages, Release
 from requests.exceptions import HTTPError
 
-from .utils import MultiHash, RepoErrors, get_url, output_result, urljoin
+from .utils import MultiHash, RepoErrors, get_url, urljoin, package_output
 
 CHECKSUMS = {
     "MD5sum": "md5",
@@ -91,10 +92,9 @@ def check_apt_repo_metadata(url : str, dist : str, release_file : Release, error
         click.echo("Metadata check successful")
 
 
-def check_apt_repo(url: str, dists: Optional[Set[str]]) -> bool:
+def check_apt_repo(url: str, dists: Optional[Set[str]], errors: RepoErrors) -> bool:
     """Validate an apt repo."""
     click.echo(f"Validating apt repo at {url}...")
-    errors = RepoErrors()
     proc_packages = 0
 
     if not dists:
@@ -104,7 +104,8 @@ def check_apt_repo(url: str, dists: Optional[Set[str]]) -> bool:
             errors.add(url, RepoErrors.DEFAULT,
                 f"Could not determine dists from {url}: {e}"
             )
-            return output_result(proc_packages, errors)
+            package_output(proc_packages)
+            return True
 
     click.echo(f"Checking dists: {', '.join(dists)}")
 
@@ -203,7 +204,8 @@ def check_apt_repo(url: str, dists: Optional[Set[str]]) -> bool:
         except Exception as e:
             errors.add(url, dist, f"Unknown error occured: {e}")
         except KeyboardInterrupt:
-            output_result(proc_packages, errors)
-            raise
+            package_output(proc_packages)
+            return False
 
-    return output_result(proc_packages, errors)
+    package_output(proc_packages)
+    return True

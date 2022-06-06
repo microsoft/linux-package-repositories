@@ -1,4 +1,5 @@
 from distutils.log import error
+from io import TextIOWrapper
 import xml.etree.ElementTree as ET
 import zlib
 from typing import List
@@ -6,7 +7,7 @@ from typing import List
 import click
 from requests.exceptions import HTTPError
 
-from .utils import MultiHash, ParseError, RepoErrors, get_url, output_result, urljoin
+from .utils import MultiHash, ParseError, RepoErrors, get_url, package_output, urljoin
 
 NS = {
     "common": "http://linux.duke.edu/metadata/common",
@@ -68,16 +69,15 @@ def check_yum_repo_metadata(url: str, repomd : ET, errors : RepoErrors):
                     f"'{ref_checksum}' but received '{multihash.hexdigest(checksum_type)}'."
                 )
 
-    if errors.error_count() > 0:
+    if errors.error_count(url, RepoErrors.DEFAULT) > 0:
         click.echo("Metadata check failed")
     else:
         click.echo("Metadata check successful")
 
-def check_yum_repo(url: str) -> bool:
+def check_yum_repo(url: str, errors: RepoErrors) -> bool:
     """Validate a yum repo at url."""
     click.echo(f"Validating yum repo at {url}...")
-    errors = RepoErrors()
-    errors.add(url, RepoErrors.DEFAULT, None) # add errors entry with no errors (yet)
+    errors.add(url, RepoErrors.DEFAULT, None) # add entry with no errors (yet)
 
     proc_packages = 0
 
@@ -190,7 +190,8 @@ def check_yum_repo(url: str) -> bool:
             f"Unknown error occured: {e}"
         )
     except KeyboardInterrupt:
-        output_result(proc_packages, errors)
-        raise
+        package_output(proc_packages)
+        return False
 
-    return output_result(proc_packages, errors)
+    package_output(proc_packages)
+    return True
