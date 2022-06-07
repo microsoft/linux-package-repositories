@@ -7,7 +7,7 @@ from typing import List
 import click
 from requests.exceptions import HTTPError
 
-from .utils import MultiHash, ParseError, RepoErrors, get_url, package_output, urljoin
+from .utils import MultiHash, ParseError, RepoErrors, check_repo_empty, get_url, package_output, urljoin
 
 NS = {
     "common": "http://linux.duke.edu/metadata/common",
@@ -65,7 +65,7 @@ def check_yum_repo_metadata(url: str, repomd : ET, errors : RepoErrors):
 
             if multihash.hexdigest(checksum_type) != ref_checksum:
                 errors.add(url, RepoErrors.DEFAULT,
-                    f"{checksum_type} checksum mismatch for '{file_url}'. Expected "
+                    f"Metadata {checksum_type} checksum mismatch for '{file_url}'. Expected "
                     f"'{ref_checksum}' but received '{multihash.hexdigest(checksum_type)}'."
                 )
 
@@ -74,12 +74,20 @@ def check_yum_repo_metadata(url: str, repomd : ET, errors : RepoErrors):
     else:
         click.echo("Metadata check successful")
 
+# returns false if interrupted by keyboard interrupt
 def check_yum_repo(url: str, errors: RepoErrors) -> bool:
     """Validate a yum repo at url."""
     click.echo(f"Validating yum repo at {url}...")
     errors.add(url, RepoErrors.DEFAULT, None) # add entry with no errors (yet)
 
     proc_packages = 0
+
+    if check_repo_empty(url):
+        errors.add(url, RepoErrors.DEFAULT,
+            "Repository empty"
+        )
+        package_output(proc_packages)
+        return True
 
     try:
         repomd_url = urljoin(url, "/repodata/repomd.xml")
@@ -174,7 +182,7 @@ def check_yum_repo(url: str, errors: RepoErrors) -> bool:
 
                 if multihash.hexdigest(checksum_type) != digest:
                     errors.add(url, RepoErrors.DEFAULT,
-                        f"{checksum_type} checksum mismatch for '{package_url}'. Expected "
+                        f"Package {checksum_type} checksum mismatch for '{package_url}'. Expected "
                         f"'{digest}' but received '{multihash.hexdigest(checksum_type)}'."
                     )
                 proc_packages += 1

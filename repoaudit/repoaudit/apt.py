@@ -1,6 +1,7 @@
 from distutils.command import check
 from distutils.log import error
 from io import TextIOWrapper
+from optparse import Option
 import re
 import zlib
 from typing import Optional, Set, List
@@ -8,8 +9,9 @@ from typing import Optional, Set, List
 import click
 from debian.deb822 import Packages, Release
 from requests.exceptions import HTTPError
+from pgpy import PGPKey
 
-from .utils import MultiHash, RepoErrors, get_url, urljoin, package_output
+from .utils import MultiHash, RepoErrors, check_repo_empty, get_url, urljoin, package_output, verify_signature
 
 CHECKSUMS = {
     "MD5sum": "md5",
@@ -81,7 +83,7 @@ def check_apt_repo_metadata(url : str, dist : str, release_file : Release, error
         for key, alg in checksum_types.items():
             if multihash.hexdigest(alg) != checksums[key]:
                 errors.add(url, dist,
-                    f"{key} checksum mismatch for '{file_name}'. "
+                    f"Metadata {key} checksum mismatch for '{file_name}'. "
                     f"Expected '{checksums[key]}' but received "
                     f"'{multihash.hexdigest(alg)}'."
                 )
@@ -91,11 +93,49 @@ def check_apt_repo_metadata(url : str, dist : str, release_file : Release, error
     else:
         click.echo("Metadata check successful")
 
+def check_apt_signatures(url : str, dist : str, pubkeys: Set[PGPKey], errors: RepoErrors):
+    if pubkeys is None:
+        return
+    
+    dist_url = urljoin(url, "dists", dist)
+    release_url = urljoin(dist_url, "Release")
+    releasesig_url = urljoin(dist_url, "Release.gpg")
+    inrelease_url = urljoin(dist_url, "InRelease")
 
-def check_apt_repo(url: str, dists: Optional[Set[str]], errors: RepoErrors) -> bool:
+    try:
+        release_text = get_url(release_url).text
+        inrelease_text = get_url(inrelease_url).text
+        releasesig_text = get_url(releasesig_url).text
+    except HTTPError as e:
+        errors.add(url, dist,
+            f"While checking signatures, could not access file at {e.response.url}: {e}"
+        )
+        return
+
+    # if not verify_signature(pubkeys, release_text, releasesig_text):
+    #     errors.add(url, dist,
+    #         f"Signature verfication failed for {release_url} "
+    #         f"with the signature {releasesig_url}"
+    #     )
+    
+    if not verify_signature(pubkeys, inrelease_text):
+        errors.add(url, dist,
+            f"Signature verification failed for {inrelease_url}"
+        )
+
+
+# returns false if interrupted by keyboard interrupt
+def check_apt_repo(url: str, dists: Optional[Set[str]], errors: RepoErrors, pubkeys: Optional[Set[PGPKey]]) -> bool:
     """Validate an apt repo."""
     click.echo(f"Validating apt repo at {url}...")
     proc_packages = 0
+
+    if check_repo_empty(url):
+        errors.add(url, RepoErrors.DEFAULT,
+            f"Repository empty at {url}"
+        )
+        package_output(proc_packages)
+        return True
 
     if not dists:
         try:
@@ -111,10 +151,12 @@ def check_apt_repo(url: str, dists: Optional[Set[str]], errors: RepoErrors) -> b
 
     for dist in dists:
         try:
-            errors.add(url, dist, None) # add errors entry with no errors (yet)
+            errors.add(url, dist, None) # add entry with no errors (yet)
+
+            check_apt_signatures(url, dist, pubkeys, errors)
+
             dist_url = urljoin(url, "dists", dist)
             release_url = urljoin(dist_url, "Release")
-            
             try:
                 release = get_url(release_url).text
             except HTTPError as e:
@@ -147,7 +189,6 @@ def check_apt_repo(url: str, dists: Optional[Set[str]], errors: RepoErrors) -> b
                     try:
                         packages = _packages_file(urljoin(dist_url, comp, f"binary-{arch}"))
                     except HTTPError as e:
-                        file_url = urljoin(dist_url, comp, f"binary-{arch}", "Packages")
                         errors.add(url, dist,
                             f"Could not access Packages file at {e.response.url}: {e}"
                         )
@@ -191,7 +232,7 @@ def check_apt_repo(url: str, dists: Optional[Set[str]], errors: RepoErrors) -> b
                             for key, alg in checksum_types.items():
                                 if multihash.hexdigest(alg) != package[key]:
                                     errors.add(url, dist,
-                                        f"{key} checksum mismatch for '{package['Filename']}'. "
+                                        f"Package {key} checksum mismatch for '{package['Filename']}'. "
                                         f"Expected '{package[key]}' but received "
                                         f"'{multihash.hexdigest(alg)}'."
                                     )
@@ -203,6 +244,7 @@ def check_apt_repo(url: str, dists: Optional[Set[str]], errors: RepoErrors) -> b
             )
         except Exception as e:
             errors.add(url, dist, f"Unknown error occured: {e}")
+            raise
         except KeyboardInterrupt:
             package_output(proc_packages)
             return False

@@ -1,8 +1,12 @@
 import hashlib
-from typing import List, Optional
+import re
+from typing import List, Optional, Set
 
 import click
+from pgpy.errors import PGPError
+from pgpy import PGPKey, PGPMessage, PGPSignature
 import requests
+from requests.exceptions import HTTPError
 from requests.adapters import HTTPAdapter
 from requests.packages.urllib3.util.retry import Retry
 
@@ -79,6 +83,55 @@ def output_result(errors: RepoErrors, file) -> bool:
 
 def package_output(proc_packages : int) -> None:
     click.echo(f"Checked {proc_packages} package(s).")
+
+
+def check_repo_empty(url: str) -> bool:
+    """Returns true if repo is empty"""
+    try:
+        resp = get_url(url)
+        content = re.findall(r"href=[\"'](.*)[\"']", resp.text)
+        content = list(filter(lambda c: ".." not in c, content))
+        return len(content) == 0
+    except HTTPError:
+        return True
+
+def verify_signature(pubkeys: Set[PGPKey], file_text: str, signature_text: Optional[str] = None):
+    passed = False
+    file = open("temp.txt", "w")
+    file.write(file_text)
+    file.close()
+
+    msg = PGPMessage.new("temp.txt", file=True)
+
+    # print(msg.message)
+
+    if signature_text:
+        sig = PGPSignature.from_blob(signature_text)
+        msg |= sig
+    else:
+        sig = PGPSignature.from_blob(file_text)
+        msg |= sig
+
+    for pub in pubkeys:
+        print("trying to verify")
+        try:
+            pub.verify(msg)
+            passed = True
+        except PGPError as e:
+            print(e)
+            # print(file)
+            continue
+    print(passed)
+    return passed
+    # try:
+    #     file_text = get_url(file_url).text
+    #     if signature_url:
+    #         sig_text = get_url(file_url).text
+    #     else:
+    #         sig_text = None
+    # except HTTPError as e:
+
+
 
 def urljoin(*paths: str) -> str:
     """Join together a set of url components."""

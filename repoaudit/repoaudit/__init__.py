@@ -1,13 +1,14 @@
 #TODO: have script output to file
 
 import re
+import pgpy
 from typing import List
 
 import click
 from requests.exceptions import HTTPError
 
 from .apt import check_apt_repo
-from .utils import RepoErrors, get_url, output_result
+from .utils import RepoErrors, get_url, output_result, urljoin
 from .yum import check_yum_repo
 
 recursive_option = click.option(
@@ -28,6 +29,16 @@ file_option = click.option(
     ),
 )
 
+pubkey_option = click.option(
+    "--pubkeys",
+    "-p",
+    help=(
+        "Comma separated list of the url of public keys. "
+        "When provided, signatures will be verified to make "
+        "sure they match one of the public keys."
+    )
+)
+
 
 def _get_repo_urls(url: str) -> List[str]:
     try:
@@ -38,7 +49,20 @@ def _get_repo_urls(url: str) -> List[str]:
             "Please check the url or explicitly use repo urls without the --recursive option."
         )
     links = re.findall(r"href=[\"'](.*)[\"']", resp.text)
-    return [f"{url}/{link}" for link in links if ".." not in link]
+    return [urljoin(url,link) for link in links if ".." not in link]
+
+
+def _get_pubkey(url: str):
+    try:
+        resp = get_url(url)
+    except HTTPError as e:
+        raise click.ClickException(
+            f"{e}\n"
+            "Please check the url for the public key"
+        )
+    pub_key = pgpy.PGPKey()
+    pub_key.parse(resp.text)
+    return pub_key
 
 
 @click.group()
@@ -52,7 +76,8 @@ def main() -> None:
 @click.argument("url")
 @click.option("--dists", help="Comma separated list of distributions.")
 @file_option
-def apt(recursive: bool, url: str, dists: str, output : str) -> None:
+@pubkey_option
+def apt(recursive: bool, url: str, dists: str, output : str, pubkeys: str) -> None:
     """Validate an apt repository at URL."""
     if recursive:
         urls = _get_repo_urls(url)
@@ -69,10 +94,15 @@ def apt(recursive: bool, url: str, dists: str, output : str) -> None:
     else:
         file = None
     
+    if pubkeys:
+        pubkey_set = set(map(_get_pubkey, pubkeys.split(",")))
+    else:
+        pubkey_set = None
+    
     errors = RepoErrors()
 
     for repo_url in urls:
-        if not check_apt_repo(repo_url, dist_set, errors):
+        if not check_apt_repo(repo_url, dist_set, errors, pubkey_set):
             break
     
     output_result(errors, file)
