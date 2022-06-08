@@ -1,17 +1,13 @@
-from distutils.command import check
-from distutils.log import error
-from io import TextIOWrapper
-from optparse import Option
 import re
 import zlib
-from typing import Optional, Set, List
+from typing import Optional, Set
 
 import click
 from debian.deb822 import Packages, Release
 from requests.exceptions import HTTPError
-from pgpy import PGPKey
+import gnupg
 
-from .utils import MultiHash, RepoErrors, check_repo_empty, get_url, urljoin, package_output, verify_signature
+from .utils import MultiHash, RepoErrors, check_repo_empty, check_signature, get_url, urljoin, package_output
 
 CHECKSUMS = {
     "MD5sum": "md5",
@@ -47,9 +43,11 @@ def _packages_file(base_url: str) -> str:
             raise e
 
 
-def check_apt_repo_metadata(url : str, dist : str, release_file : Release, errors: RepoErrors):
+def check_apt_repo_metadata(url : str, dist : str, release_file : Release, errors: RepoErrors) -> None:
     dist_url = urljoin(url, "dists", dist)
     checksum_types = {key : CHECKSUMS[key] for key in CHECKSUMS.keys() if key in release_file}
+    
+    success = True
 
     files = dict()
     for key in checksum_types:
@@ -63,6 +61,7 @@ def check_apt_repo_metadata(url : str, dist : str, release_file : Release, error
         errors.add(url, dist,
             urljoin(dist_url, "Release") + " file malformed"
         )
+        success = False
 
     for file_name, checksums in files.items():
         multihash = MultiHash(list(checksum_types.values()))
@@ -75,6 +74,7 @@ def check_apt_repo_metadata(url : str, dist : str, release_file : Release, error
                 errors.add(url, dist,
                     f"Could not access file at {e.respose.url} : {e}"
                 )
+                success = False
             continue
 
         for chunk in response.iter_content(chunk_size=CHUNK_SIZE):
@@ -87,45 +87,33 @@ def check_apt_repo_metadata(url : str, dist : str, release_file : Release, error
                     f"Expected '{checksums[key]}' but received "
                     f"'{multihash.hexdigest(alg)}'."
                 )
+                success = False
 
-    if errors.error_count() > 0:
-        click.echo("Metadata check failed")
-    else:
+    if success:
         click.echo("Metadata check successful")
+    else:
+        click.echo("Metadata check failed")
 
-def check_apt_signatures(url : str, dist : str, pubkeys: Set[PGPKey], errors: RepoErrors):
-    if pubkeys is None:
+#TODO: Share a function between apt and yum signature checks
+def check_apt_signatures(url : str, dist : str, gpg: Optional[gnupg.GPG], errors: RepoErrors) -> None:
+    if gpg is None:
         return
-    
+
     dist_url = urljoin(url, "dists", dist)
     release_url = urljoin(dist_url, "Release")
     releasesig_url = urljoin(dist_url, "Release.gpg")
     inrelease_url = urljoin(dist_url, "InRelease")
 
-    try:
-        release_text = get_url(release_url).text
-        inrelease_text = get_url(inrelease_url).text
-        releasesig_text = get_url(releasesig_url).text
-    except HTTPError as e:
-        errors.add(url, dist,
-            f"While checking signatures, could not access file at {e.response.url}: {e}"
-        )
-        return
-
-    # if not verify_signature(pubkeys, release_text, releasesig_text):
-    #     errors.add(url, dist,
-    #         f"Signature verfication failed for {release_url} "
-    #         f"with the signature {releasesig_url}"
-    #     )
-    
-    if not verify_signature(pubkeys, inrelease_text):
-        errors.add(url, dist,
-            f"Signature verification failed for {inrelease_url}"
-        )
+    success = (check_signature(url, dist, release_url, gpg, errors, signature_url=releasesig_url) and
+               check_signature(url, dist, inrelease_url, gpg, errors))
+    if success:
+        click.echo("Signature check successful")
+    else:
+        click.echo("Signature check failed")
 
 
 # returns false if interrupted by keyboard interrupt
-def check_apt_repo(url: str, dists: Optional[Set[str]], errors: RepoErrors, pubkeys: Optional[Set[PGPKey]]) -> bool:
+def check_apt_repo(url: str, dists: Optional[Set[str]], gpg: Optional[gnupg.GPG], errors: RepoErrors) -> bool:
     """Validate an apt repo."""
     click.echo(f"Validating apt repo at {url}...")
     proc_packages = 0
@@ -153,8 +141,6 @@ def check_apt_repo(url: str, dists: Optional[Set[str]], errors: RepoErrors, pubk
         try:
             errors.add(url, dist, None) # add entry with no errors (yet)
 
-            check_apt_signatures(url, dist, pubkeys, errors)
-
             dist_url = urljoin(url, "dists", dist)
             release_url = urljoin(dist_url, "Release")
             try:
@@ -164,6 +150,8 @@ def check_apt_repo(url: str, dists: Optional[Set[str]], errors: RepoErrors, pubk
                     f"Could not access Release file at {e.response.url}: {e}"
                 )
                 continue
+            
+            check_apt_signatures(url, dist, gpg, errors)
 
             try:
                 release_file = Release(release)
@@ -172,7 +160,7 @@ def check_apt_repo(url: str, dists: Optional[Set[str]], errors: RepoErrors, pubk
                     f"{release_url} file malformed"
                 )
                 continue
-
+            
             check_apt_repo_metadata(url, dist, release_file, errors)
 
             if "Components" not in release_file and "Architectures" not in release_file:
@@ -244,7 +232,6 @@ def check_apt_repo(url: str, dists: Optional[Set[str]], errors: RepoErrors, pubk
             )
         except Exception as e:
             errors.add(url, dist, f"Unknown error occured: {e}")
-            raise
         except KeyboardInterrupt:
             package_output(proc_packages)
             return False

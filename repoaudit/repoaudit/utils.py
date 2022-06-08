@@ -1,17 +1,22 @@
 import hashlib
+import os
+import random
 import re
+import shutil
+import string
+import gnupg
 from typing import List, Optional, Set
 
 import click
-from pgpy.errors import PGPError
-from pgpy import PGPKey, PGPMessage, PGPSignature
 import requests
 from requests.exceptions import HTTPError
 from requests.adapters import HTTPAdapter
 from requests.packages.urllib3.util.retry import Retry
 
+
 class ParseError(Exception):
     pass
+
 
 class MultiHash:
     """A class to can handle multiple hash objs."""
@@ -34,16 +39,19 @@ class MultiHash:
 
 class RepoErrors:
     DEFAULT = "default"
+
     def __init__(self) -> None:
         self.errors = dict()
 
-    def add(self, repo : str, dist : str, error : Optional[str]) -> None:
+    def add(self, repo: str, dist: str, error: Optional[str]) -> None:
         if repo not in self.errors:
             self.errors[repo] = dict()
         if dist not in self.errors[repo]:
             self.errors[repo][dist] = []
         if error is not None:
-            self.errors[repo][dist].append(error.replace('\n', ' ').replace('\r', '').rstrip())
+            self.errors[repo][dist].append(error.replace(
+                '\n', ' ').replace('\r', '').rstrip())
+
     def error_count(self, repo: Optional[str] = None, dist: Optional[str] = None) -> int:
         count = 0
         if repo:
@@ -70,18 +78,97 @@ class RepoErrors:
                     output += ("\n").join(errors) + "\n"
         return output
 
+def generate_random_folder() -> str:
+    path = "temp_"
+    path += ''.join(random.choices(string.ascii_lowercase +
+                        string.digits + string.ascii_uppercase, k=32))
+    return path
 
-def output_result(errors: RepoErrors, file) -> bool:
+def initialize_gpg(urls: List[str], home_dir: Optional[str] = None) -> Optional[gnupg.GPG]:
+    """Raises HTTPError if key url is invalid"""
+    if home_dir is None:
+        home_dir = generate_random_folder()
+    
+    if not os.path.exists(home_dir):
+        os.mkdir(home_dir)
+    
+    gpg = gnupg.GPG(gnupghome=home_dir)
+
+    for url in urls:
+        try:
+            resp = get_url(url)
+        except:
+            if home_dir is None:
+                destroy_gpg(gpg)
+            else:
+                destroy_gpg(gpg, keep_folder=True)
+            raise
+
+        gpg.import_keys(resp.text)
+
+    return gpg
+
+
+def destroy_gpg(gpg: Optional[gnupg.GPG], keep_folder: bool = False) -> None:
+    if gpg and os.path.exists(gpg.gnupghome):
+        if keep_folder:
+            for filename in os.listdir(gpg.gnupghome):
+                file_path = os.path.join(gpg.gnupghome, filename)
+                if os.path.isfile(file_path) or os.path.islink(file_path):
+                    os.unlink(file_path)
+                elif os.path.isdir(file_path):
+                    shutil.rmtree(file_path)
+        else:
+            shutil.rmtree(gpg.gnupghome)
+
+def check_signature(repo: str, dist: str, file_url: str,
+                    gpg: gnupg.GPG, errors: RepoErrors, 
+                    signature_url: Optional[str] = None) -> bool:
+    success = True
+
+    try:
+        file_text = get_url(file_url).text
+        if signature_url:
+            sig_text = get_url(signature_url).text
+            sig_file_loc = os.path.join(gpg.gnupghome,"temp_sig_file.gpg")
+
+            file = open(sig_file_loc, "w")
+            file.write(sig_text)
+            file.close()
+
+            verified = gpg.verify_data(sig_file_loc, file_text.encode())
+        else:
+            verified = gpg.verify(file_text)
+        
+        if not verified:
+            errors.add(repo, dist,
+                f"Signature verification failed for {file_url} " +
+                (f"with the signature {signature_url}" if signature_url else "")
+            )
+            success = False
+    except HTTPError as e:
+        errors.add(repo, dist,
+            f"While checking signatures, could not access file at {e.response.url}: {e}"
+        )
+        success = False
+    
+    return success
+
+
+def output_result(errors: RepoErrors, file_name: Optional[str]) -> bool:
     """Output number of packages processed and errors."""
     # click.echo(f"Checked {proc_packages} package(s).")
     text_output = errors.get_output()
-    if file is not None:
+    if file_name is not None:
+        file = open(file_name, "w")
         file.write(text_output)
+        file.close()
     else:
         click.echo(text_output)
     return errors.error_count() == 0
 
-def package_output(proc_packages : int) -> None:
+
+def package_output(proc_packages: int) -> None:
     click.echo(f"Checked {proc_packages} package(s).")
 
 
@@ -94,43 +181,6 @@ def check_repo_empty(url: str) -> bool:
         return len(content) == 0
     except HTTPError:
         return True
-
-def verify_signature(pubkeys: Set[PGPKey], file_text: str, signature_text: Optional[str] = None):
-    passed = False
-    file = open("temp.txt", "w")
-    file.write(file_text)
-    file.close()
-
-    msg = PGPMessage.new("temp.txt", file=True)
-
-    # print(msg.message)
-
-    if signature_text:
-        sig = PGPSignature.from_blob(signature_text)
-        msg |= sig
-    else:
-        sig = PGPSignature.from_blob(file_text)
-        msg |= sig
-
-    for pub in pubkeys:
-        print("trying to verify")
-        try:
-            pub.verify(msg)
-            passed = True
-        except PGPError as e:
-            print(e)
-            # print(file)
-            continue
-    print(passed)
-    return passed
-    # try:
-    #     file_text = get_url(file_url).text
-    #     if signature_url:
-    #         sig_text = get_url(file_url).text
-    #     else:
-    #         sig_text = None
-    # except HTTPError as e:
-
 
 
 def urljoin(*paths: str) -> str:

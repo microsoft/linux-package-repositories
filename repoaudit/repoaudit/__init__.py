@@ -1,14 +1,13 @@
-#TODO: have script output to file
+# TODO: have script output to file
 
 import re
-import pgpy
-from typing import List
+from typing import List, Optional
 
 import click
 from requests.exceptions import HTTPError
 
 from .apt import check_apt_repo
-from .utils import RepoErrors, get_url, output_result, urljoin
+from .utils import RepoErrors, destroy_gpg, generate_random_folder, get_url, initialize_gpg, output_result, urljoin
 from .yum import check_yum_repo
 
 recursive_option = click.option(
@@ -49,20 +48,7 @@ def _get_repo_urls(url: str) -> List[str]:
             "Please check the url or explicitly use repo urls without the --recursive option."
         )
     links = re.findall(r"href=[\"'](.*)[\"']", resp.text)
-    return [urljoin(url,link) for link in links if ".." not in link]
-
-
-def _get_pubkey(url: str):
-    try:
-        resp = get_url(url)
-    except HTTPError as e:
-        raise click.ClickException(
-            f"{e}\n"
-            "Please check the url for the public key"
-        )
-    pub_key = pgpy.PGPKey()
-    pub_key.parse(resp.text)
-    return pub_key
+    return [urljoin(url, link) for link in links if ".." not in link]
 
 
 @click.group()
@@ -77,7 +63,7 @@ def main() -> None:
 @click.option("--dists", help="Comma separated list of distributions.")
 @file_option
 @pubkey_option
-def apt(recursive: bool, url: str, dists: str, output : str, pubkeys: str) -> None:
+def apt(recursive: bool, url: str, dists: str, output: str, pubkeys: str) -> None:
     """Validate an apt repository at URL."""
     if recursive:
         urls = _get_repo_urls(url)
@@ -88,52 +74,58 @@ def apt(recursive: bool, url: str, dists: str, output : str, pubkeys: str) -> No
         dist_set = set(dists.split(","))
     else:
         dist_set = None
-    
-    if output:
-        file = open(output, "w")
-    else:
-        file = None
-    
+
     if pubkeys:
-        pubkey_set = set(map(_get_pubkey, pubkeys.split(",")))
+        try:
+            gpg = initialize_gpg(pubkeys.split(","))
+        except HTTPError as e:
+            raise click.ClickException(
+                f"{e}\n"
+                "Please check the url for the public key"
+            )
     else:
-        pubkey_set = None
-    
+        gpg = None
+
     errors = RepoErrors()
 
     for repo_url in urls:
-        if not check_apt_repo(repo_url, dist_set, errors, pubkey_set):
+        if not check_apt_repo(repo_url, dist_set, gpg, errors):
             break
-    
-    output_result(errors, file)
-    
-    if file:
-        file.close()
+
+    destroy_gpg(gpg)
+    output_result(errors, output)
 
 
 @main.command()
 @recursive_option
 @click.argument("url")
 @file_option
-def yum(recursive: bool, url: str, output : str) -> None:
+@pubkey_option
+def yum(recursive: bool, url: str, output: str, pubkeys: str) -> None:
     """Validate a yum repository at URL."""
     if recursive:
         urls = _get_repo_urls(url)
     else:
         urls = [url]
-    
-    if output:
-        file = open(output, "w")
+
+    if pubkeys:
+        try:
+            gpg = initialize_gpg(pubkeys.split(","))
+        except HTTPError as e:
+            raise click.ClickException(
+                f"{e}\n"
+                "Please check the url for the public key"
+            )
     else:
-        file = None
-    
+        gpg = None
+
     errors = RepoErrors()
 
-    for repo_url in urls:
-        if not check_yum_repo(repo_url, errors):
-            break
-    
-    output_result(errors, file)
+    temp_gpg_path = generate_random_folder()
 
-    if file:
-        file.close()
+    for repo_url in urls:
+        if not check_yum_repo(repo_url, gpg, temp_gpg_path, errors):
+            break
+
+    destroy_gpg(gpg)
+    output_result(errors, output)
