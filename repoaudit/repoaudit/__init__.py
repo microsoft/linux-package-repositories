@@ -87,10 +87,11 @@ def apt(recursive: bool, url: str, dists: str, output: str, pubkeys: str) -> Non
         gpg = None
 
     errors = RepoErrors()
-
-    for repo_url in urls:
-        if not check_apt_repo(repo_url, dist_set, gpg, errors):
-            break
+    try:
+        for repo_url in urls:
+            check_apt_repo(repo_url, dist_set, gpg, errors)
+    except KeyboardInterrupt:
+        pass
 
     destroy_gpg(gpg)
     output_result(errors, output)
@@ -123,9 +124,11 @@ def yum(recursive: bool, url: str, output: str, pubkeys: str) -> None:
 
     temp_gpg_path = generate_random_folder()
 
-    for repo_url in urls:
-        if not check_yum_repo(repo_url, gpg, temp_gpg_path, errors):
-            break
+    try:
+        for repo_url in urls:
+            check_yum_repo(repo_url, gpg, temp_gpg_path, errors)
+    except KeyboardInterrupt:
+        pass
 
     destroy_gpg(gpg)
     output_result(errors, output)

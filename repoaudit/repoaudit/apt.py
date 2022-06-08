@@ -113,7 +113,7 @@ def check_apt_signatures(url : str, dist : str, gpg: Optional[gnupg.GPG], errors
 
 
 # returns false if interrupted by keyboard interrupt
-def check_apt_repo(url: str, dists: Optional[Set[str]], gpg: Optional[gnupg.GPG], errors: RepoErrors) -> bool:
+def check_apt_repo(url: str, dists: Optional[Set[str]], gpg: Optional[gnupg.GPG], errors: RepoErrors) -> None:
     """Validate an apt repo."""
     click.echo(f"Validating apt repo at {url}...")
     proc_packages = 0
@@ -123,7 +123,7 @@ def check_apt_repo(url: str, dists: Optional[Set[str]], gpg: Optional[gnupg.GPG]
             f"Repository empty at {url}"
         )
         package_output(proc_packages)
-        return True
+        return
 
     if not dists:
         try:
@@ -133,7 +133,7 @@ def check_apt_repo(url: str, dists: Optional[Set[str]], gpg: Optional[gnupg.GPG]
                 f"Could not determine dists from {url}: {e}"
             )
             package_output(proc_packages)
-            return True
+            return
 
     click.echo(f"Checking dists: {', '.join(dists)}")
 
@@ -234,7 +234,6 @@ def check_apt_repo(url: str, dists: Optional[Set[str]], gpg: Optional[gnupg.GPG]
             errors.add(url, dist, f"Unknown error occured: {e}")
         except KeyboardInterrupt:
             package_output(proc_packages)
-            return False
+            raise
 
     package_output(proc_packages)
-    return True

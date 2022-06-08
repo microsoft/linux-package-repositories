@@ -110,7 +110,7 @@ def check_yum_signature(url: str, gpg: Optional[gnupg.GPG], temp_gpg_path: str, 
 
 
 # returns false if interrupted by keyboard interrupt
-def check_yum_repo(url: str, gpg: Optional[gnupg.GPG], temp_gpg_path: str, errors: RepoErrors) -> bool:
+def check_yum_repo(url: str, gpg: Optional[gnupg.GPG], temp_gpg_path: str, errors: RepoErrors) -> None:
     """Validate a yum repo at url."""
     click.echo(f"Validating yum repo at {url}...")
     errors.add(url, RepoErrors.DEFAULT, None) # add entry with no errors (yet)
@@ -123,7 +123,7 @@ def check_yum_repo(url: str, gpg: Optional[gnupg.GPG], temp_gpg_path: str, error
                 "Repository empty"
             )
             package_output(proc_packages)
-            return True
+            return
 
         check_yum_signature(url, gpg, temp_gpg_path, errors)
 
@@ -236,7 +236,6 @@ def check_yum_repo(url: str, gpg: Optional[gnupg.GPG], temp_gpg_path: str, error
         )
     except KeyboardInterrupt:
         package_output(proc_packages)
-        return False
+        raise
 
     package_output(proc_packages)
-    return True
