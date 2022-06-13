@@ -1,4 +1,5 @@
 import hashlib
+import json
 import os
 import random
 import re
@@ -77,6 +78,9 @@ class RepoErrors:
                 if errors:
                     output += ("\n").join(errors) + "\n"
         return output
+
+    def get_json(self) -> str:
+        return json.dumps(self.errors, indent = 4)
 
 def generate_random_folder() -> str:
     path = "temp_"
@@ -158,12 +162,14 @@ def check_signature(repo: str, dist: str, file_url: str,
 def output_result(errors: RepoErrors, file_name: Optional[str]) -> bool:
     """Output number of packages processed and errors."""
     # click.echo(f"Checked {proc_packages} package(s).")
-    text_output = errors.get_output()
+    
     if file_name is not None:
+        text_output = errors.get_json()
         file = open(file_name, "w")
         file.write(text_output)
         file.close()
     else:
+        text_output = errors.get_output()
         click.echo(text_output)
     return errors.error_count() == 0
 
