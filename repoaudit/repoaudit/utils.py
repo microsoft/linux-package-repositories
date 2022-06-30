@@ -5,6 +5,7 @@ import random
 import re
 import shutil
 import string
+import tempfile
 import gnupg
 from typing import List, Optional, Set
 
@@ -90,13 +91,14 @@ def generate_random_folder() -> str:
 
 def initialize_gpg(urls: List[str], home_dir: Optional[str] = None) -> Optional[gnupg.GPG]:
     """Raises HTTPError if key url is invalid"""
-    if home_dir is None:
-        home_dir = generate_random_folder()
+    _home_dir = home_dir
+    if _home_dir is None:
+        _home_dir = os.path.join(tempfile.gettempdir(), generate_random_folder())
     
-    if not os.path.exists(home_dir):
-        os.mkdir(home_dir)
+    if not os.path.exists(_home_dir):
+        os.mkdir(_home_dir)
     
-    gpg = gnupg.GPG(gnupghome=home_dir)
+    gpg = gnupg.GPG(gnupghome=_home_dir)
 
     for url in urls:
         try:
