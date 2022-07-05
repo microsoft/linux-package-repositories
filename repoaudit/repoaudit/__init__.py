@@ -1,13 +1,8 @@
-# TODO: have script output to file
-
-import re
-from typing import List, Optional
-
 import click
 from requests.exceptions import HTTPError
 
 from .apt import check_apt_repo
-from .utils import RepoErrors, destroy_gpg, generate_random_folder, get_url, initialize_gpg, output_result, urljoin
+from .utils import RepoErrors, destroy_gpg, initialize_gpg, output_result, get_repo_urls
 from .yum import check_yum_repo
 
 recursive_option = click.option(
@@ -39,23 +34,10 @@ pubkey_option = click.option(
 )
 
 
-def _get_repo_urls(url: str) -> List[str]:
-    try:
-        resp = get_url(url)
-    except HTTPError as e:
-        raise click.ClickException(
-            f"{e}\n"
-            "Please check the url or explicitly use repo urls without the --recursive option."
-        )
-    links = re.findall(r"href=[\"'](.*)[\"']", resp.text)
-    return [urljoin(url, link) for link in links if ".." not in link]
-
-
 @click.group()
 def main() -> None:
     """Audit a repo by validating its repo metadata and packages."""
     pass
-
 
 @main.command()
 @recursive_option
@@ -66,7 +48,7 @@ def main() -> None:
 def apt(recursive: bool, url: str, dists: str, output: str, pubkeys: str) -> None:
     """Validate an apt repository at URL."""
     if recursive:
-        urls = _get_repo_urls(url)
+        urls = get_repo_urls(url)
     else:
         urls = [url]
 
@@ -105,7 +87,7 @@ def apt(recursive: bool, url: str, dists: str, output: str, pubkeys: str) -> Non
 def yum(recursive: bool, url: str, output: str, pubkeys: str) -> None:
     """Validate a yum repository at URL."""
     if recursive:
-        urls = _get_repo_urls(url)
+        urls = get_repo_urls(url)
     else:
         urls = [url]
 
@@ -122,11 +104,9 @@ def yum(recursive: bool, url: str, output: str, pubkeys: str) -> None:
 
     errors = RepoErrors()
 
-    temp_gpg_path = generate_random_folder()
-
     try:
         for repo_url in urls:
-            check_yum_repo(repo_url, gpg, temp_gpg_path, errors)
+            check_yum_repo(repo_url, gpg, errors)
     except KeyboardInterrupt:
         pass
 

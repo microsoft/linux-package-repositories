@@ -5,7 +5,7 @@ long_description = (Path(__file__).parent / "README.md").read_text()
 
 setup(
     name="repoaudit",
-    python_requires=">=3.8",
+    python_requires=">=3.6",
     description="CLI to validate yum/apt repositories",
     url="https://github.com/microsoft/linux-package-repositories",
     version="0.0.1",

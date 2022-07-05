@@ -16,7 +16,7 @@ NS = {
 }
 CHUNK_SIZE = 2 * 1024 * 1024
 
-def check_yum_repo_metadata(url: str, repomd : ET, errors : RepoErrors):
+def _check_yum_repo_metadata(url: str, repomd : ET, errors : RepoErrors, verify: Optional[str] = None):
     success = True
     repomd_url = urljoin(url, "/repodata/repomd.xml")
 
@@ -53,7 +53,7 @@ def check_yum_repo_metadata(url: str, repomd : ET, errors : RepoErrors):
                 ref_checksum = file_checksum_info.text
 
                 try:
-                    response = get_url(f"{file_url}", stream=True)
+                    response = get_url(f"{file_url}", verify=verify, stream=True)
                 except HTTPError as e:
                     errors.add(url, RepoErrors.DEFAULT,
                         f"Could not access file at {e.response.url}: {e}"
@@ -78,23 +78,23 @@ def check_yum_repo_metadata(url: str, repomd : ET, errors : RepoErrors):
     else:
         click.echo("Metadata check failed")
 
-def check_yum_signature(url: str, gpg: Optional[gnupg.GPG], temp_gpg_path: str, errors: RepoErrors):
+def _check_yum_signature(url: str, gpg: Optional[gnupg.GPG], errors: RepoErrors, verify: Optional[str] = None):
     if gpg is None:
         return
 
     repomd_url = urljoin(url, "/repodata/repomd.xml")
     repomdsig_url = urljoin(url, "/repodata/repomd.xml.asc")
 
-    success = check_signature(url, RepoErrors.DEFAULT, repomd_url, gpg, errors, signature_url=repomdsig_url)
+    success = check_signature(url, RepoErrors.DEFAULT, repomd_url, gpg, errors, signature_url=repomdsig_url, verify=verify)
 
     if "suse" in url or "sles" in url:
         repomdkey_url = urljoin(url, "/repodata/repomd.xml.key")
         try:
-            gpg_temp = initialize_gpg([repomdkey_url], home_dir=os.path.join(gpg.gnupghome, temp_gpg_path))
+            gpg_temp = initialize_gpg([repomdkey_url], home_dir=os.path.join(gpg.gnupghome, "temporary_gpg_susesles"), verify=verify)
             success = (
                 success and
-                check_signature(url, RepoErrors.DEFAULT, repomd_url, 
-                                gpg_temp, errors, signature_url=repomdsig_url)
+                check_signature(url, RepoErrors.DEFAULT, repomd_url,
+                                gpg_temp, errors, signature_url=repomdsig_url, verify=verify)
             )
             destroy_gpg(gpg_temp, keep_folder=True)
         except HTTPError as e:
@@ -109,8 +109,7 @@ def check_yum_signature(url: str, gpg: Optional[gnupg.GPG], temp_gpg_path: str, 
         click.echo("Signature check failed")
 
 
-# returns false if interrupted by keyboard interrupt
-def check_yum_repo(url: str, gpg: Optional[gnupg.GPG], temp_gpg_path: str, errors: RepoErrors) -> None:
+def check_yum_repo(url: str, gpg: Optional[gnupg.GPG], errors: RepoErrors, verify: Optional[str] = None) -> None:
     """Validate a yum repo at url."""
     click.echo(f"Validating yum repo at {url}...")
     errors.add(url, RepoErrors.DEFAULT, None) # add entry with no errors (yet)
@@ -118,17 +117,17 @@ def check_yum_repo(url: str, gpg: Optional[gnupg.GPG], temp_gpg_path: str, error
     proc_packages = 0
 
     try:
-        if check_repo_empty(url):
+        if check_repo_empty(url, verify=verify):
             errors.add(url, RepoErrors.DEFAULT,
                 "Repository empty"
             )
             package_output(proc_packages)
             return
 
-        check_yum_signature(url, gpg, temp_gpg_path, errors)
+        _check_yum_signature(url, gpg, errors, verify=verify)
 
         repomd_url = urljoin(url, "/repodata/repomd.xml")
-        response = get_url(repomd_url) # if this errors it is caught by the except below
+        response = get_url(repomd_url, verify=verify) # if this errors it is caught by the except below
 
         try:
             repomd = ET.fromstring(response.text)
@@ -139,7 +138,7 @@ def check_yum_repo(url: str, gpg: Optional[gnupg.GPG], temp_gpg_path: str, error
             )
             raise ParseError
 
-        check_yum_repo_metadata(url, repomd, errors)
+        _check_yum_repo_metadata(url, repomd, errors, verify=verify)
 
         primary_loc = repomd.find("repo:data[@type='primary']/repo:location", namespaces=NS)
         if primary_loc is None:
@@ -160,7 +159,7 @@ def check_yum_repo(url: str, gpg: Optional[gnupg.GPG], temp_gpg_path: str, error
 
         primary_url = urljoin(url, primary_file)
 
-        response = get_url(primary_url) # if this errors it is caught by the except below
+        response = get_url(primary_url, verify=verify) # if this errors it is caught by the except below
         primary_xml = zlib.decompress(response.content, 16 + zlib.MAX_WBITS)
 
         try:
@@ -181,7 +180,6 @@ def check_yum_repo(url: str, gpg: Optional[gnupg.GPG], temp_gpg_path: str, error
             label="Checking package(s)",
         ) as bar:
             for package in bar:
-
                 location = package.find("common:location", namespaces=NS).get("href")
                 checksum = package.find("common:checksum", namespaces=NS)
                 if location is None or checksum is None:
@@ -205,15 +203,13 @@ def check_yum_repo(url: str, gpg: Optional[gnupg.GPG], temp_gpg_path: str, error
                 if checksum_type == "sha":
                     checksum_type = "sha1"
                 multihash = MultiHash([checksum_type])
-
                 try:
-                    response = get_url(f"{package_url}", stream=True)
+                    response = get_url(f"{package_url}", verify=verify, stream=True)
                 except HTTPError as e:
                     errors.add(url, RepoErrors.DEFAULT,
                         f"Could not access package at {e.response.url}: {e}"
                     )
                     continue
-
                 for chunk in response.iter_content(chunk_size=CHUNK_SIZE):
                     multihash.update(chunk)
 
@@ -230,10 +226,6 @@ def check_yum_repo(url: str, gpg: Optional[gnupg.GPG], temp_gpg_path: str, error
         )
     except ParseError:
         pass
-    except Exception as e:
-        errors.add(url, RepoErrors.DEFAULT,
-            f"Unknown error occured: {e}"
-        )
     except KeyboardInterrupt:
         package_output(proc_packages)
         raise

@@ -7,7 +7,7 @@ import shutil
 import string
 import tempfile
 import gnupg
-from typing import List, Optional, Set
+from typing import List, Optional
 
 import click
 import requests
@@ -83,17 +83,28 @@ class RepoErrors:
     def get_json(self) -> str:
         return json.dumps(self.errors, indent = 4)
 
-def generate_random_folder() -> str:
+def get_repo_urls(url: str, verify: Optional[str] = None) -> List[str]:
+    try:
+        resp = get_url(url, verify=verify)
+    except HTTPError as e:
+        raise click.ClickException(
+            f"{e}\n"
+            "Please check the url or explicitly use repo urls without the --recursive option."
+        )
+    links = re.findall(r"href=[\"'](.*)[\"']", resp.text)
+    return [urljoin(url, link) for link in links if ".." not in link]
+
+def _generate_temp_str() -> str:
     path = "temp_"
     path += ''.join(random.choices(string.ascii_lowercase +
                         string.digits + string.ascii_uppercase, k=32))
     return path
 
-def initialize_gpg(urls: List[str], home_dir: Optional[str] = None) -> Optional[gnupg.GPG]:
+def initialize_gpg(urls: List[str], home_dir: Optional[str] = None, verify: Optional[str] = None) -> Optional[gnupg.GPG]:
     """Raises HTTPError if key url is invalid"""
     _home_dir = home_dir
     if _home_dir is None:
-        _home_dir = os.path.join(tempfile.gettempdir(), generate_random_folder())
+        _home_dir = os.path.join(tempfile.gettempdir(), _generate_temp_str())
     
     if not os.path.exists(_home_dir):
         os.mkdir(_home_dir)
@@ -102,7 +113,7 @@ def initialize_gpg(urls: List[str], home_dir: Optional[str] = None) -> Optional[
 
     for url in urls:
         try:
-            resp = get_url(url)
+            resp = get_url(url, verify=verify)
         except:
             if home_dir is None:
                 destroy_gpg(gpg)
@@ -129,13 +140,14 @@ def destroy_gpg(gpg: Optional[gnupg.GPG], keep_folder: bool = False) -> None:
 
 def check_signature(repo: str, dist: str, file_url: str,
                     gpg: gnupg.GPG, errors: RepoErrors, 
-                    signature_url: Optional[str] = None) -> bool:
+                    signature_url: Optional[str] = None,
+                    verify: Optional[str] = None) -> bool:
     success = True
 
     try:
-        file_text = get_url(file_url).text
+        file_text = get_url(file_url, verify=verify).text
         if signature_url:
-            sig_text = get_url(signature_url).text
+            sig_text = get_url(signature_url, verify=verify).text
             sig_file_loc = os.path.join(gpg.gnupghome,"temp_sig_file.gpg")
 
             file = open(sig_file_loc, "w")
@@ -180,10 +192,10 @@ def package_output(proc_packages: int) -> None:
     click.echo(f"Checked {proc_packages} package(s).")
 
 
-def check_repo_empty(url: str) -> bool:
+def check_repo_empty(url: str, verify: Optional[str] = None) -> bool:
     """Returns true if repo is empty"""
     try:
-        resp = get_url(url)
+        resp = get_url(url, verify=verify)
         content = re.findall(r"href=[\"'](.*)[\"']", resp.text)
         content = list(filter(lambda c: ".." not in c, content))
         return len(content) == 0
@@ -210,11 +222,12 @@ def retry_session(retries: int = 3) -> requests.Session:
 def get_url(
     url: str,
     stream: bool = False,
-    session: Optional[requests.Session] = None
+    session: Optional[requests.Session] = None,
+    verify: Optional[str] = None
 ) -> requests.Response:
     """Call requests.get() on a url and return the requests.Response."""
     if not session:
         session = retry_session()
-    resp = session.get(url, stream=stream)
+    resp = session.get(url, stream=stream, verify=verify)
     resp.raise_for_status()
     return resp
