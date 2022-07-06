@@ -28,7 +28,7 @@ def _check_yum_repo_metadata(url: str, repomd : ET, errors : RepoErrors, verify:
                 file_location_info = repomd.find(f"repo:data[@type='{data_type}']/repo:location", namespaces=NS)
                 file_checksum_info = repomd.find(f"repo:data[@type='{data_type}']/repo:checksum", namespaces=NS)
                 if file_location_info is None or file_checksum_info is None:
-                    errors.add(url, RepoErrors.DEFAULT,
+                    errors.add(url, RepoErrors.YUM_DIST,
                         f"{repomd_url} file malformed, "
                         f"no location or checksum found for {data_type}"
                     )
@@ -38,7 +38,7 @@ def _check_yum_repo_metadata(url: str, repomd : ET, errors : RepoErrors, verify:
                 checksum_type = file_checksum_info.get("type")
 
                 if file_loc is None or checksum_type is None:
-                    errors.add(url, RepoErrors.DEFAULT,
+                    errors.add(url, RepoErrors.YUM_DIST,
                         f"{repomd_url} file malformed"
                         f"no href or type for {data_type}"
                     )
@@ -55,7 +55,7 @@ def _check_yum_repo_metadata(url: str, repomd : ET, errors : RepoErrors, verify:
                 try:
                     response = get_url(f"{file_url}", verify=verify, stream=True)
                 except HTTPError as e:
-                    errors.add(url, RepoErrors.DEFAULT,
+                    errors.add(url, RepoErrors.YUM_DIST,
                         f"Could not access file at {e.response.url}: {e}"
                     )
                     success = False
@@ -65,7 +65,7 @@ def _check_yum_repo_metadata(url: str, repomd : ET, errors : RepoErrors, verify:
                         multihash.update(chunk)
 
                 if multihash.hexdigest(checksum_type) != ref_checksum:
-                    errors.add(url, RepoErrors.DEFAULT,
+                    errors.add(url, RepoErrors.YUM_DIST,
                         f"Metadata {checksum_type} checksum mismatch for '{file_url}'. Expected "
                         f"'{ref_checksum}' but received '{multihash.hexdigest(checksum_type)}'."
                     )
@@ -85,7 +85,7 @@ def _check_yum_signature(url: str, gpg: Optional[gnupg.GPG], errors: RepoErrors,
     repomd_url = urljoin(url, "/repodata/repomd.xml")
     repomdsig_url = urljoin(url, "/repodata/repomd.xml.asc")
 
-    success = check_signature(url, RepoErrors.DEFAULT, repomd_url, gpg, errors, signature_url=repomdsig_url, verify=verify)
+    success = check_signature(url, RepoErrors.YUM_DIST, repomd_url, gpg, errors, signature_url=repomdsig_url, verify=verify)
 
     if "suse" in url or "sles" in url:
         repomdkey_url = urljoin(url, "/repodata/repomd.xml.key")
@@ -93,12 +93,12 @@ def _check_yum_signature(url: str, gpg: Optional[gnupg.GPG], errors: RepoErrors,
             gpg_temp = initialize_gpg([repomdkey_url], home_dir=os.path.join(gpg.gnupghome, "temporary_gpg_susesles"), verify=verify)
             success = (
                 success and
-                check_signature(url, RepoErrors.DEFAULT, repomd_url,
+                check_signature(url, RepoErrors.YUM_DIST, repomd_url,
                                 gpg_temp, errors, signature_url=repomdsig_url, verify=verify)
             )
             destroy_gpg(gpg_temp, keep_folder=True)
         except HTTPError as e:
-            errors.add(url, RepoErrors.DEFAULT,
+            errors.add(url, RepoErrors.YUM_DIST,
                 f"While checking signatures, key file {repomdkey_url} does not exist for SUSE repo: {e}"
             )
             success = False
@@ -112,17 +112,16 @@ def _check_yum_signature(url: str, gpg: Optional[gnupg.GPG], errors: RepoErrors,
 def check_yum_repo(url: str, gpg: Optional[gnupg.GPG], errors: RepoErrors, verify: Optional[str] = None) -> None:
     """Validate a yum repo at url."""
     click.echo(f"Validating yum repo at {url}...")
-    errors.add(url, RepoErrors.DEFAULT, None) # add entry with no errors (yet)
+    errors.add(url, None, None) # add empty entry with no errors
 
     proc_packages = 0
 
     try:
         if check_repo_empty(url, verify=verify):
-            errors.add(url, RepoErrors.DEFAULT,
-                "Repository empty"
-            )
             package_output(proc_packages)
             return
+
+        errors.add(url, RepoErrors.YUM_DIST, None)
 
         _check_yum_signature(url, gpg, errors, verify=verify)
 
@@ -132,7 +131,7 @@ def check_yum_repo(url: str, gpg: Optional[gnupg.GPG], errors: RepoErrors, verif
         try:
             repomd = ET.fromstring(response.text)
         except Exception:
-            errors.add(url, RepoErrors.DEFAULT,
+            errors.add(url, RepoErrors.YUM_DIST,
                 f"{repomd_url} file malformed, "
                 "cannot parse as an xml"
             )
@@ -142,7 +141,7 @@ def check_yum_repo(url: str, gpg: Optional[gnupg.GPG], errors: RepoErrors, verif
 
         primary_loc = repomd.find("repo:data[@type='primary']/repo:location", namespaces=NS)
         if primary_loc is None:
-            errors.add(url, RepoErrors.DEFAULT,
+            errors.add(url, RepoErrors.YUM_DIST,
                 f"{repomd_url} file malformed"
                 "primary entry does not exist"
             )
@@ -151,7 +150,7 @@ def check_yum_repo(url: str, gpg: Optional[gnupg.GPG], errors: RepoErrors, verif
         primary_file = primary_loc.get("href")
 
         if primary_file is None:
-            errors.add(url, RepoErrors.DEFAULT,
+            errors.add(url, RepoErrors.YUM_DIST,
                 f"{repomd_url} file malformed, "
                 "primary entry has no href"
             )
@@ -165,7 +164,7 @@ def check_yum_repo(url: str, gpg: Optional[gnupg.GPG], errors: RepoErrors, verif
         try:
             primary = ET.fromstring(primary_xml)
         except Exception:
-            errors.add(url, RepoErrors.DEFAULT,
+            errors.add(url, RepoErrors.YUM_DIST,
                 f"{primary_url} file malformed, "
                 "cannot parse as an xml"
             )
@@ -183,7 +182,7 @@ def check_yum_repo(url: str, gpg: Optional[gnupg.GPG], errors: RepoErrors, verif
                 location = package.find("common:location", namespaces=NS).get("href")
                 checksum = package.find("common:checksum", namespaces=NS)
                 if location is None or checksum is None:
-                    errors.add(url, RepoErrors.DEFAULT,
+                    errors.add(url, RepoErrors.YUM_DIST,
                         f"{primary_url} file malformed, "
                         "location or checksum not found for a package."
                     )
@@ -194,7 +193,7 @@ def check_yum_repo(url: str, gpg: Optional[gnupg.GPG], errors: RepoErrors, verif
 
                 checksum_type = checksum.get("type")
                 if checksum_type is None:
-                    errors.add(url, RepoErrors.DEFAULT,
+                    errors.add(url, RepoErrors.YUM_DIST,
                         f"{primary_url} file malformed, "
                         "checksum entry has no type"
                     )
@@ -206,7 +205,7 @@ def check_yum_repo(url: str, gpg: Optional[gnupg.GPG], errors: RepoErrors, verif
                 try:
                     response = get_url(f"{package_url}", verify=verify, stream=True)
                 except HTTPError as e:
-                    errors.add(url, RepoErrors.DEFAULT,
+                    errors.add(url, RepoErrors.YUM_DIST,
                         f"Could not access package at {e.response.url}: {e}"
                     )
                     continue
@@ -214,14 +213,14 @@ def check_yum_repo(url: str, gpg: Optional[gnupg.GPG], errors: RepoErrors, verif
                     multihash.update(chunk)
 
                 if multihash.hexdigest(checksum_type) != digest:
-                    errors.add(url, RepoErrors.DEFAULT,
+                    errors.add(url, RepoErrors.YUM_DIST,
                         f"Package {checksum_type} checksum mismatch for '{package_url}'. Expected "
                         f"'{digest}' but received '{multihash.hexdigest(checksum_type)}'."
                     )
                 proc_packages += 1
 
     except HTTPError as e:
-        errors.add(url, RepoErrors.DEFAULT,
+        errors.add(url, RepoErrors.YUM_DIST,
             f"Error when attempting to access {e.response.url}: {e}"
         )
     except ParseError:

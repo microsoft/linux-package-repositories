@@ -1,3 +1,4 @@
+import datetime
 import hashlib
 import json
 import os
@@ -40,36 +41,69 @@ class MultiHash:
 
 
 class RepoErrors:
-    DEFAULT = "default"
+    YUM_DIST = "yum_dist"
+    APT_DIST = "apt_dist"
 
     def __init__(self) -> None:
         self.errors = dict()
 
-    def add(self, repo: str, dist: str, error: Optional[str]) -> None:
+    def add(self, repo: str, dist: Optional[str], error: Optional[str]) -> None:
         if repo not in self.errors:
             self.errors[repo] = dict()
-        if dist not in self.errors[repo]:
-            self.errors[repo][dist] = []
-        if error is not None:
-            self.errors[repo][dist].append(error.replace(
-                '\n', ' ').replace('\r', '').rstrip())
+            self.errors[repo]["state"] = "empty"
+
+        # update time
+        self.errors[repo]["time"] = str(datetime.datetime.utcnow())
+
+        # add dist
+        if dist:
+            if "dists" not in self.errors[repo]:
+                self.errors[repo]["dists"] = dict()
+            
+            if dist not in self.errors[repo]["dists"]:
+                if "empty" == self.errors[repo]["state"]:
+                    self.errors[repo]["state"] = "ok" # repo no longer empty
+                self.errors[repo]["dists"][dist] = dict()
+                self.errors[repo]["dists"][dist]["state"] = "ok"
+
+        if error:
+            error_str = error.replace('\n', ' ').replace('\r', '').rstrip()
+            if "dist_errors" not in self.errors[repo]["dists"][dist]:
+                self.errors[repo]["dists"][dist]["dist_errors"] = []
+            
+            self.errors[repo]["dists"][dist]["dist_errors"].append(error_str)
+            self.errors[repo]["state"] = "error"
+            self.errors[repo]["dists"][dist]["state"] = "error"
+
+    def _dist_error_count(self, repo: str, dist: str):
+        if "dist_errors" in self.errors[repo]["dists"][dist]:
+            return len(self.errors[repo]["dists"][dist]["dist_errors"])
+        
+        return 0
+
+    def _repo_error_count(self, repo: str):
+        count = 0
+        if "dists" in self.errors[repo]:
+            for dist, _ in self.errors[repo]["dists"].items():
+                count += self._dist_error_count(repo, dist)
+        return count
 
     def error_count(self, repo: Optional[str] = None, dist: Optional[str] = None) -> int:
         count = 0
         if repo:
             if dist:
-                count += len(self.errors[repo][dist])
+                count = self._dist_error_count(repo, dist)
             else:
-                for _, errors in self.errors[repo].items():
-                    count += len(errors)
+                count = self._repo_error_count(repo)
+
         else:
-            for _, dists in self.errors.items():
-                for _, errors in dists.items():
-                    count += len(errors)
+            for repo_str, _ in self.errors.items():
+                count += self._repo_error_count(repo_str)
 
         return count
 
     def get_output(self) -> str:
+        return self.get_json()
         output = ""
         output += f"[repo_count: {len(self.errors)}]\n"
         for repo, dists in self.errors.items():

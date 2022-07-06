@@ -111,12 +111,10 @@ def _check_apt_signatures(url : str, dist : str, gpg: Optional[gnupg.GPG], error
 def check_apt_repo(url: str, dists: Optional[Set[str]], gpg: Optional[gnupg.GPG], errors: RepoErrors, verify: Optional[str] = None) -> None:
     """Validate an apt repo."""
     click.echo(f"Validating apt repo at {url}...")
+    errors.add(url, None, None) # add empty entry with no errors
     proc_packages = 0
 
     if check_repo_empty(url, verify=verify):
-        errors.add(url, RepoErrors.DEFAULT,
-            f"Repository empty at {url}"
-        )
         package_output(proc_packages)
         return
 
@@ -124,7 +122,7 @@ def check_apt_repo(url: str, dists: Optional[Set[str]], gpg: Optional[gnupg.GPG]
         try:
             dists = _find_dists(url, verify=verify)
         except HTTPError as e:
-            errors.add(url, RepoErrors.DEFAULT,
+            errors.add(url, RepoErrors.APT_DIST,
                 f"Could not determine dists from {url}: {e}"
             )
             package_output(proc_packages)
@@ -223,7 +221,7 @@ def check_apt_repo(url: str, dists: Optional[Set[str]], gpg: Optional[gnupg.GPG]
                             package_num += 1
         except HTTPError as e:
             errors.add(url, dist,
-                f"Error when attempting to access {e.response.url}: {e}", err=True
+                f"Error when attempting to access {e.response.url}: {e}"
             )
         except KeyboardInterrupt:
             package_output(proc_packages)
