@@ -39,6 +39,7 @@ def main() -> None:
     """Audit a repo by validating its repo metadata and packages."""
     pass
 
+
 @main.command()
 @recursive_option
 @click.argument("url")

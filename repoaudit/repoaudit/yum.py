@@ -16,7 +16,10 @@ NS = {
 }
 CHUNK_SIZE = 2 * 1024 * 1024
 
-def _check_yum_repo_metadata(url: str, repomd : ET, errors : RepoErrors, verify: Optional[str] = None):
+
+def _check_yum_repo_metadata(url: str, repomd: ET, errors: RepoErrors, verify: Optional[str] = None):
+    """Check repo metadata for checksum mismatches."""
+
     success = True
     repomd_url = urljoin(url, "/repodata/repomd.xml")
 
@@ -33,7 +36,7 @@ def _check_yum_repo_metadata(url: str, repomd : ET, errors : RepoErrors, verify:
                         f"no location or checksum found for {data_type}"
                     )
                     raise ParseError
-                
+
                 file_loc = file_location_info.get("href")
                 checksum_type = file_checksum_info.get("type")
 
@@ -45,9 +48,9 @@ def _check_yum_repo_metadata(url: str, repomd : ET, errors : RepoErrors, verify:
                     raise ParseError
 
                 file_url = urljoin(url, file_loc)
-                
+
                 if checksum_type == "sha":
-                        checksum_type = "sha1"
+                    checksum_type = "sha1"
                 multihash = MultiHash([checksum_type])
 
                 ref_checksum = file_checksum_info.text
@@ -62,7 +65,7 @@ def _check_yum_repo_metadata(url: str, repomd : ET, errors : RepoErrors, verify:
                     continue
 
                 for chunk in response.iter_content(chunk_size=CHUNK_SIZE):
-                        multihash.update(chunk)
+                    multihash.update(chunk)
 
                 if multihash.hexdigest(checksum_type) != ref_checksum:
                     errors.add(url, RepoErrors.YUM_DIST,
@@ -78,19 +81,24 @@ def _check_yum_repo_metadata(url: str, repomd : ET, errors : RepoErrors, verify:
     else:
         click.echo("Metadata check failed")
 
+
 def _check_yum_signature(url: str, gpg: Optional[gnupg.GPG], errors: RepoErrors, verify: Optional[str] = None):
+    """Verify signature using provided public keys in gpg parameter."""
     if gpg is None:
         return
 
     repomd_url = urljoin(url, "/repodata/repomd.xml")
     repomdsig_url = urljoin(url, "/repodata/repomd.xml.asc")
 
-    success = check_signature(url, RepoErrors.YUM_DIST, repomd_url, gpg, errors, signature_url=repomdsig_url, verify=verify)
+    success = check_signature(url, RepoErrors.YUM_DIST, repomd_url, gpg, errors,
+                              signature_url=repomdsig_url, verify=verify)
 
     if "suse" in url or "sles" in url:
         repomdkey_url = urljoin(url, "/repodata/repomd.xml.key")
         try:
-            gpg_temp = initialize_gpg([repomdkey_url], home_dir=os.path.join(gpg.gnupghome, "temporary_gpg_susesles"), verify=verify)
+            gpg_temp = initialize_gpg([repomdkey_url], home_dir=os.path.join(
+                gpg.gnupghome, "temporary_gpg_susesles"), verify=verify)
+
             success = (
                 success and
                 check_signature(url, RepoErrors.YUM_DIST, repomd_url,
@@ -112,7 +120,7 @@ def _check_yum_signature(url: str, gpg: Optional[gnupg.GPG], errors: RepoErrors,
 def check_yum_repo(url: str, gpg: Optional[gnupg.GPG], errors: RepoErrors, verify: Optional[str] = None) -> None:
     """Validate a yum repo at url."""
     click.echo(f"Validating yum repo at {url}...")
-    errors.add(url, None, None) # add empty entry with no errors
+    errors.add(url, None, None)  # add empty entry with no errors
 
     proc_packages = 0
 
@@ -126,7 +134,7 @@ def check_yum_repo(url: str, gpg: Optional[gnupg.GPG], errors: RepoErrors, verif
         _check_yum_signature(url, gpg, errors, verify=verify)
 
         repomd_url = urljoin(url, "/repodata/repomd.xml")
-        response = get_url(repomd_url, verify=verify) # if this errors it is caught by the except below
+        response = get_url(repomd_url, verify=verify)  # if this errors it is caught by the except below
 
         try:
             repomd = ET.fromstring(response.text)
@@ -158,7 +166,7 @@ def check_yum_repo(url: str, gpg: Optional[gnupg.GPG], errors: RepoErrors, verif
 
         primary_url = urljoin(url, primary_file)
 
-        response = get_url(primary_url, verify=verify) # if this errors it is caught by the except below
+        response = get_url(primary_url, verify=verify)  # if this errors it is caught by the except below
         primary_xml = zlib.decompress(response.content, 16 + zlib.MAX_WBITS)
 
         try:

@@ -41,6 +41,10 @@ class MultiHash:
 
 
 class RepoErrors:
+    """A class to keep track of repository errors. Each repository has an entry 
+    for each distro in it. If there are no distros (i.e. yum repo) then 
+    YUM_DIST or APT_DIST can be used instead."""
+
     YUM_DIST = "yum_dist"
     APT_DIST = "apt_dist"
 
@@ -48,6 +52,16 @@ class RepoErrors:
         self.errors = dict()
 
     def add(self, repo: str, dist: Optional[str], error: Optional[str]) -> None:
+        """
+        - If just a repository is specified without a dist and it hasn't been added yet, it
+        will have the state "empty".
+        - If a dist is specified, the repository it is a part of as well as 
+        the dist will have the state "ok".
+        - If an error is specified, a dist and repo must also be specified 
+        for which the error is a part of. Upon adding an error, the dist and 
+        repo it is a part of will change to the state "error".
+        """
+
         if repo not in self.errors:
             self.errors[repo] = dict()
             self.errors[repo]["state"] = "empty"
@@ -59,26 +73,26 @@ class RepoErrors:
         if dist:
             if "dists" not in self.errors[repo]:
                 self.errors[repo]["dists"] = dict()
-            
+
             if dist not in self.errors[repo]["dists"]:
                 if "empty" == self.errors[repo]["state"]:
-                    self.errors[repo]["state"] = "ok" # repo no longer empty
+                    self.errors[repo]["state"] = "ok"  # repo no longer empty
                 self.errors[repo]["dists"][dist] = dict()
                 self.errors[repo]["dists"][dist]["state"] = "ok"
 
-        if error:
-            error_str = error.replace('\n', ' ').replace('\r', '').rstrip()
-            if "dist_errors" not in self.errors[repo]["dists"][dist]:
-                self.errors[repo]["dists"][dist]["dist_errors"] = []
-            
-            self.errors[repo]["dists"][dist]["dist_errors"].append(error_str)
-            self.errors[repo]["state"] = "error"
-            self.errors[repo]["dists"][dist]["state"] = "error"
+            if error:
+                error_str = error.replace('\n', ' ').replace('\r', '').rstrip()
+                if "dist_errors" not in self.errors[repo]["dists"][dist]:
+                    self.errors[repo]["dists"][dist]["dist_errors"] = []
+
+                self.errors[repo]["dists"][dist]["dist_errors"].append(error_str)
+                self.errors[repo]["state"] = "error"
+                self.errors[repo]["dists"][dist]["state"] = "error"
 
     def _dist_error_count(self, repo: str, dist: str):
         if "dist_errors" in self.errors[repo]["dists"][dist]:
             return len(self.errors[repo]["dists"][dist]["dist_errors"])
-        
+
         return 0
 
     def _repo_error_count(self, repo: str):
@@ -89,6 +103,8 @@ class RepoErrors:
         return count
 
     def error_count(self, repo: Optional[str] = None, dist: Optional[str] = None) -> int:
+        """Return the number of errors in all repositories, in a single repository, or a single
+        distro in a repository."""
         count = 0
         if repo:
             if dist:
@@ -104,18 +120,10 @@ class RepoErrors:
 
     def get_output(self) -> str:
         return self.get_json()
-        output = ""
-        output += f"[repo_count: {len(self.errors)}]\n"
-        for repo, dists in self.errors.items():
-            output += f"{repo} [dist_count: {len(dists)}]\n"
-            for dist, errors in dists.items():
-                output += f"{dist} [error_count: {len(errors)}]\n"
-                if errors:
-                    output += ("\n").join(errors) + "\n"
-        return output
 
     def get_json(self) -> str:
-        return json.dumps(self.errors, indent = 4)
+        return json.dumps(self.errors, indent=4)
+
 
 def get_repo_urls(url: str, verify: Optional[str] = None) -> List[str]:
     try:
@@ -128,21 +136,23 @@ def get_repo_urls(url: str, verify: Optional[str] = None) -> List[str]:
     links = re.findall(r"href=[\"'](.*)[\"']", resp.text)
     return [urljoin(url, link) for link in links if ".." not in link]
 
+
 def _generate_temp_str() -> str:
     path = "temp_"
     path += ''.join(random.choices(string.ascii_lowercase +
-                        string.digits + string.ascii_uppercase, k=32))
+                                   string.digits + string.ascii_uppercase, k=32))
     return path
+
 
 def initialize_gpg(urls: List[str], home_dir: Optional[str] = None, verify: Optional[str] = None) -> Optional[gnupg.GPG]:
     """Raises HTTPError if key url is invalid"""
     _home_dir = home_dir
     if _home_dir is None:
         _home_dir = os.path.join(tempfile.gettempdir(), _generate_temp_str())
-    
+
     if not os.path.exists(_home_dir):
         os.mkdir(_home_dir)
-    
+
     gpg = gnupg.GPG(gnupghome=_home_dir)
 
     for url in urls:
@@ -172,17 +182,20 @@ def destroy_gpg(gpg: Optional[gnupg.GPG], keep_folder: bool = False) -> None:
         else:
             shutil.rmtree(gpg.gnupghome)
 
+
 def check_signature(repo: str, dist: str, file_url: str,
-                    gpg: gnupg.GPG, errors: RepoErrors, 
+                    gpg: gnupg.GPG, errors: RepoErrors,
                     signature_url: Optional[str] = None,
                     verify: Optional[str] = None) -> bool:
-    success = True
+    """Check the signature on a file. If the signature is detached (in a separate file)
+    its url can be specified with signature_url. It is expected gpg input already has
+    the public keys loaded. """
 
     try:
         file_text = get_url(file_url, verify=verify).text
         if signature_url:
             sig_text = get_url(signature_url, verify=verify).text
-            sig_file_loc = os.path.join(gpg.gnupghome,"temp_sig_file.gpg")
+            sig_file_loc = os.path.join(gpg.gnupghome, "temp_sig_file.gpg")
 
             file = open(sig_file_loc, "w")
             file.write(sig_text)
@@ -191,26 +204,25 @@ def check_signature(repo: str, dist: str, file_url: str,
             verified = gpg.verify_data(sig_file_loc, file_text.encode())
         else:
             verified = gpg.verify(file_text)
-        
+
         if not verified:
             errors.add(repo, dist,
                 f"Signature verification failed for {file_url} " +
                 (f"with the signature {signature_url}" if signature_url else "")
             )
-            success = False
+            return False
     except HTTPError as e:
         errors.add(repo, dist,
             f"While checking signatures, could not access file at {e.response.url}: {e}"
         )
-        success = False
-    
-    return success
+        return False
+
+    return True
 
 
 def output_result(errors: RepoErrors, file_name: Optional[str]) -> bool:
     """Output number of packages processed and errors."""
-    # click.echo(f"Checked {proc_packages} package(s).")
-    
+
     if file_name is not None:
         text_output = errors.get_json()
         file = open(file_name, "w")
@@ -227,7 +239,7 @@ def package_output(proc_packages: int) -> None:
 
 
 def check_repo_empty(url: str, verify: Optional[str] = None) -> bool:
-    """Returns true if repo is empty"""
+    """Returns true if repo is empty, false otherwise."""
     try:
         resp = get_url(url, verify=verify)
         content = re.findall(r"href=[\"'](.*)[\"']", resp.text)

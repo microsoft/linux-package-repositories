@@ -19,6 +19,7 @@ CHUNK_SIZE = 2 * 1024 * 1024
 
 
 def _find_dists(url: str, verify: Optional[str] = None) -> Set[str]:
+    """Find apt distributions."""
     try:
         resp = get_url(urljoin(url, "dists"), verify=verify)
     except HTTPError as e:
@@ -29,6 +30,7 @@ def _find_dists(url: str, verify: Optional[str] = None) -> Set[str]:
 
 
 def _packages_file(base_url: str, verify: Optional[str] = None) -> str:
+    """Retrieve the packages file. It is possible for it to be compressed."""
     try:
         resp = get_url(urljoin(base_url, "Packages"), verify=verify)
         return resp.text
@@ -40,10 +42,13 @@ def _packages_file(base_url: str, verify: Optional[str] = None) -> str:
             raise e
 
 
-def _check_apt_repo_metadata(url : str, dist : str, release_file : Release, errors: RepoErrors, verify: Optional[str] = None) -> None:
+def _check_apt_repo_metadata(url: str, dist: str, release_file: Release, 
+        errors: RepoErrors, verify: Optional[str] = None) -> None:
+    """Check repo metadata for checksum mismatches."""
+
     dist_url = urljoin(url, "dists", dist)
-    checksum_types = {key : CHECKSUMS[key] for key in CHECKSUMS.keys() if key in release_file}
-    
+    checksum_types = {key: CHECKSUMS[key] for key in CHECKSUMS.keys() if key in release_file}
+
     success = True
 
     files = dict()
@@ -76,7 +81,7 @@ def _check_apt_repo_metadata(url : str, dist : str, release_file : Release, erro
 
         for chunk in response.iter_content(chunk_size=CHUNK_SIZE):
             multihash.update(chunk)
-        
+
         for key, alg in checksum_types.items():
             if multihash.hexdigest(alg) != checksums[key]:
                 errors.add(url, dist,
@@ -91,7 +96,11 @@ def _check_apt_repo_metadata(url : str, dist : str, release_file : Release, erro
     else:
         click.echo("Metadata check failed")
 
-def _check_apt_signatures(url : str, dist : str, gpg: Optional[gnupg.GPG], errors: RepoErrors, verify: Optional[str] = None) -> None:
+
+def _check_apt_signatures(url: str, dist: str, gpg: Optional[gnupg.GPG], 
+        errors: RepoErrors, verify: Optional[str] = None) -> None:
+    """Verify signature using provided public keys in gpg parameter."""
+
     if gpg is None:
         return
 
@@ -110,8 +119,9 @@ def _check_apt_signatures(url : str, dist : str, gpg: Optional[gnupg.GPG], error
 
 def check_apt_repo(url: str, dists: Optional[Set[str]], gpg: Optional[gnupg.GPG], errors: RepoErrors, verify: Optional[str] = None) -> None:
     """Validate an apt repo."""
+    
     click.echo(f"Validating apt repo at {url}...")
-    errors.add(url, None, None) # add empty entry with no errors
+    errors.add(url, None, None)  # add empty entry with no errors
     proc_packages = 0
 
     if check_repo_empty(url, verify=verify):
@@ -132,7 +142,7 @@ def check_apt_repo(url: str, dists: Optional[Set[str]], gpg: Optional[gnupg.GPG]
 
     for dist in dists:
         try:
-            errors.add(url, dist, None) # add entry with no errors (yet)
+            errors.add(url, dist, None)  # add entry with no errors (yet)
 
             dist_url = urljoin(url, "dists", dist)
             release_url = urljoin(dist_url, "Release")
@@ -143,7 +153,7 @@ def check_apt_repo(url: str, dists: Optional[Set[str]], gpg: Optional[gnupg.GPG]
                     f"Could not access Release file at {e.response.url}: {e}"
                 )
                 continue
-            
+
             _check_apt_signatures(url, dist, gpg, errors, verify=verify)
 
             try:
@@ -153,7 +163,7 @@ def check_apt_repo(url: str, dists: Optional[Set[str]], gpg: Optional[gnupg.GPG]
                     f"{release_url} file malformed"
                 )
                 continue
-            
+
             _check_apt_repo_metadata(url, dist, release_file, errors, verify=verify)
 
             if "Components" not in release_file and "Architectures" not in release_file:

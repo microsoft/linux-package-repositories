@@ -1,6 +1,0 @@
-[repo_count: 2]
-https://packages.microsoft.com/yumrepos//1.0-eval-base-aarch64-rpms/ [dist_count: 1]
-default [error_count: 1]
-Error when attempting to access https://packages.microsoft.com/yumrepos//1.0-eval-base-aarch64-rpms/repodata/repomd.xml: 404 Client Error: Not Found for url: https://packages.microsoft.com/yumrepos//1.0-eval-base-aarch64-rpms/repodata/repomd.xml
-https://packages.microsoft.com/yumrepos//1.0-eval-base-x8664-rpms/ [dist_count: 1]
-default [error_count: 0]
