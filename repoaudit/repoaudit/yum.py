@@ -7,7 +7,9 @@ import click
 import gnupg
 from requests.exceptions import HTTPError
 
-from .utils import MultiHash, ParseError, RepoErrors, check_repo_empty, check_signature, destroy_gpg, get_url, initialize_gpg, package_output, urljoin
+from .utils import (MultiHash, ParseError, RepoErrors, check_repo_empty,
+                    check_signature, destroy_gpg, get_url, initialize_gpg, 
+                    package_output, urljoin)
 
 NS = {
     "common": "http://linux.duke.edu/metadata/common",
@@ -17,7 +19,9 @@ NS = {
 CHUNK_SIZE = 2 * 1024 * 1024
 
 
-def _check_yum_repo_metadata(url: str, repomd: ET, errors: RepoErrors, verify: Optional[str] = None):
+def _check_yum_repo_metadata(url: str, repomd: ET,
+                             errors: RepoErrors,
+                             verify: Optional[str] = None) -> None:
     """Check repo metadata for checksum mismatches."""
 
     success = True
@@ -28,10 +32,14 @@ def _check_yum_repo_metadata(url: str, repomd: ET, errors: RepoErrors, verify: O
             if "type" in child.attrib:
                 data_type = child.attrib["type"]
 
-                file_location_info = repomd.find(f"repo:data[@type='{data_type}']/repo:location", namespaces=NS)
-                file_checksum_info = repomd.find(f"repo:data[@type='{data_type}']/repo:checksum", namespaces=NS)
+                file_location_info = repomd.find(f"repo:data[@type='{data_type}']/repo:location",
+                                                 namespaces=NS)
+                file_checksum_info = repomd.find(f"repo:data[@type='{data_type}']/repo:checksum",
+                                                 namespaces=NS)
+
                 if file_location_info is None or file_checksum_info is None:
-                    errors.add(url, RepoErrors.YUM_DIST,
+                    errors.add(
+                        url, RepoErrors.YUM_DIST,
                         f"{repomd_url} file malformed, "
                         f"no location or checksum found for {data_type}"
                     )
@@ -41,7 +49,8 @@ def _check_yum_repo_metadata(url: str, repomd: ET, errors: RepoErrors, verify: O
                 checksum_type = file_checksum_info.get("type")
 
                 if file_loc is None or checksum_type is None:
-                    errors.add(url, RepoErrors.YUM_DIST,
+                    errors.add(
+                        url, RepoErrors.YUM_DIST,
                         f"{repomd_url} file malformed"
                         f"no href or type for {data_type}"
                     )
@@ -58,7 +67,8 @@ def _check_yum_repo_metadata(url: str, repomd: ET, errors: RepoErrors, verify: O
                 try:
                     response = get_url(f"{file_url}", verify=verify, stream=True)
                 except HTTPError as e:
-                    errors.add(url, RepoErrors.YUM_DIST,
+                    errors.add(
+                        url, RepoErrors.YUM_DIST,
                         f"Could not access file at {e.response.url}: {e}"
                     )
                     success = False
@@ -68,7 +78,8 @@ def _check_yum_repo_metadata(url: str, repomd: ET, errors: RepoErrors, verify: O
                     multihash.update(chunk)
 
                 if multihash.hexdigest(checksum_type) != ref_checksum:
-                    errors.add(url, RepoErrors.YUM_DIST,
+                    errors.add(
+                        url, RepoErrors.YUM_DIST,
                         f"Metadata {checksum_type} checksum mismatch for '{file_url}'. Expected "
                         f"'{ref_checksum}' but received '{multihash.hexdigest(checksum_type)}'."
                     )
@@ -82,7 +93,8 @@ def _check_yum_repo_metadata(url: str, repomd: ET, errors: RepoErrors, verify: O
         click.echo("Metadata check failed")
 
 
-def _check_yum_signature(url: str, gpg: Optional[gnupg.GPG], errors: RepoErrors, verify: Optional[str] = None):
+def _check_yum_signature(url: str, gpg: Optional[gnupg.GPG],
+                         errors: RepoErrors, verify: Optional[str] = None) -> None:
     """Verify signature using provided public keys in gpg parameter."""
     if gpg is None:
         return
@@ -106,8 +118,10 @@ def _check_yum_signature(url: str, gpg: Optional[gnupg.GPG], errors: RepoErrors,
             )
             destroy_gpg(gpg_temp, keep_folder=True)
         except HTTPError as e:
-            errors.add(url, RepoErrors.YUM_DIST,
-                f"While checking signatures, key file {repomdkey_url} does not exist for SUSE repo: {e}"
+            errors.add(
+                url, RepoErrors.YUM_DIST,
+                f"While checking signatures, "
+                f"key file {repomdkey_url} does not exist for SUSE repo: {e}"
             )
             success = False
 
@@ -117,7 +131,8 @@ def _check_yum_signature(url: str, gpg: Optional[gnupg.GPG], errors: RepoErrors,
         click.echo("Signature check failed")
 
 
-def check_yum_repo(url: str, gpg: Optional[gnupg.GPG], errors: RepoErrors, verify: Optional[str] = None) -> None:
+def check_yum_repo(url: str, gpg: Optional[gnupg.GPG],
+                   errors: RepoErrors, verify: Optional[str] = None) -> None:
     """Validate a yum repo at url."""
     click.echo(f"Validating yum repo at {url}...")
     errors.add(url, None, None)  # add empty entry with no errors
@@ -134,12 +149,14 @@ def check_yum_repo(url: str, gpg: Optional[gnupg.GPG], errors: RepoErrors, verif
         _check_yum_signature(url, gpg, errors, verify=verify)
 
         repomd_url = urljoin(url, "/repodata/repomd.xml")
-        response = get_url(repomd_url, verify=verify)  # if this errors it is caught by the except below
+        # if this errors it's caught by the except below
+        response = get_url(repomd_url, verify=verify)
 
         try:
             repomd = ET.fromstring(response.text)
         except Exception:
-            errors.add(url, RepoErrors.YUM_DIST,
+            errors.add(
+                url, RepoErrors.YUM_DIST,
                 f"{repomd_url} file malformed, "
                 "cannot parse as an xml"
             )
@@ -149,7 +166,8 @@ def check_yum_repo(url: str, gpg: Optional[gnupg.GPG], errors: RepoErrors, verif
 
         primary_loc = repomd.find("repo:data[@type='primary']/repo:location", namespaces=NS)
         if primary_loc is None:
-            errors.add(url, RepoErrors.YUM_DIST,
+            errors.add(
+                url, RepoErrors.YUM_DIST,
                 f"{repomd_url} file malformed"
                 "primary entry does not exist"
             )
@@ -158,7 +176,8 @@ def check_yum_repo(url: str, gpg: Optional[gnupg.GPG], errors: RepoErrors, verif
         primary_file = primary_loc.get("href")
 
         if primary_file is None:
-            errors.add(url, RepoErrors.YUM_DIST,
+            errors.add(
+                url, RepoErrors.YUM_DIST,
                 f"{repomd_url} file malformed, "
                 "primary entry has no href"
             )
@@ -166,13 +185,15 @@ def check_yum_repo(url: str, gpg: Optional[gnupg.GPG], errors: RepoErrors, verif
 
         primary_url = urljoin(url, primary_file)
 
-        response = get_url(primary_url, verify=verify)  # if this errors it is caught by the except below
+        # if this errors it's caught by the except below
+        response = get_url(primary_url, verify=verify)
         primary_xml = zlib.decompress(response.content, 16 + zlib.MAX_WBITS)
 
         try:
             primary = ET.fromstring(primary_xml)
         except Exception:
-            errors.add(url, RepoErrors.YUM_DIST,
+            errors.add(
+                url, RepoErrors.YUM_DIST,
                 f"{primary_url} file malformed, "
                 "cannot parse as an xml"
             )
@@ -190,7 +211,8 @@ def check_yum_repo(url: str, gpg: Optional[gnupg.GPG], errors: RepoErrors, verif
                 location = package.find("common:location", namespaces=NS).get("href")
                 checksum = package.find("common:checksum", namespaces=NS)
                 if location is None or checksum is None:
-                    errors.add(url, RepoErrors.YUM_DIST,
+                    errors.add(
+                        url, RepoErrors.YUM_DIST,
                         f"{primary_url} file malformed, "
                         "location or checksum not found for a package."
                     )
@@ -201,7 +223,8 @@ def check_yum_repo(url: str, gpg: Optional[gnupg.GPG], errors: RepoErrors, verif
 
                 checksum_type = checksum.get("type")
                 if checksum_type is None:
-                    errors.add(url, RepoErrors.YUM_DIST,
+                    errors.add(
+                        url, RepoErrors.YUM_DIST,
                         f"{primary_url} file malformed, "
                         "checksum entry has no type"
                     )
@@ -213,7 +236,8 @@ def check_yum_repo(url: str, gpg: Optional[gnupg.GPG], errors: RepoErrors, verif
                 try:
                     response = get_url(f"{package_url}", verify=verify, stream=True)
                 except HTTPError as e:
-                    errors.add(url, RepoErrors.YUM_DIST,
+                    errors.add(
+                        url, RepoErrors.YUM_DIST,
                         f"Could not access package at {e.response.url}: {e}"
                     )
                     continue
@@ -221,14 +245,17 @@ def check_yum_repo(url: str, gpg: Optional[gnupg.GPG], errors: RepoErrors, verif
                     multihash.update(chunk)
 
                 if multihash.hexdigest(checksum_type) != digest:
-                    errors.add(url, RepoErrors.YUM_DIST,
-                        f"Package {checksum_type} checksum mismatch for '{package_url}'. Expected "
+                    errors.add(
+                        url, RepoErrors.YUM_DIST,
+                        f"Package {checksum_type} checksum mismatch "
+                        f"for '{package_url}'. Expected "
                         f"'{digest}' but received '{multihash.hexdigest(checksum_type)}'."
                     )
                 proc_packages += 1
 
     except HTTPError as e:
-        errors.add(url, RepoErrors.YUM_DIST,
+        errors.add(
+            url, RepoErrors.YUM_DIST,
             f"Error when attempting to access {e.response.url}: {e}"
         )
     except ParseError:

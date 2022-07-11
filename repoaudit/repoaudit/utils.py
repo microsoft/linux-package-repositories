@@ -41,7 +41,7 @@ class MultiHash:
 
 
 class RepoErrors:
-    """A class to keep track of repository errors. Each repository has an entry 
+    """A class to keep track of repository errors. Each repository has an entry
     for each distro in it. If there are no distros (i.e. yum repo) then 
     YUM_DIST or APT_DIST can be used instead."""
 
@@ -126,6 +126,7 @@ class RepoErrors:
 
 
 def get_repo_urls(url: str, verify: Optional[str] = None) -> List[str]:
+    """Returns a list of repository url's in the folder linked by the input url"""
     try:
         resp = get_url(url, verify=verify)
     except HTTPError as e:
@@ -138,14 +139,19 @@ def get_repo_urls(url: str, verify: Optional[str] = None) -> List[str]:
 
 
 def _generate_temp_str() -> str:
+    """Generates a random string for temporary files and folders"""
     path = "temp_"
     path += ''.join(random.choices(string.ascii_lowercase +
                                    string.digits + string.ascii_uppercase, k=32))
     return path
 
 
-def initialize_gpg(urls: List[str], home_dir: Optional[str] = None, verify: Optional[str] = None) -> Optional[gnupg.GPG]:
-    """Raises HTTPError if key url is invalid"""
+def initialize_gpg(urls: List[str], home_dir: Optional[str] = None,
+                   verify: Optional[str] = None) -> gnupg.GPG:
+    """
+    Initializes a GPG object using the public keys at the input urls.
+    Raises HTTPError if a key url is invalid.
+    """
     _home_dir = home_dir
     if _home_dir is None:
         _home_dir = os.path.join(tempfile.gettempdir(), _generate_temp_str())
@@ -171,6 +177,7 @@ def initialize_gpg(urls: List[str], home_dir: Optional[str] = None, verify: Opti
 
 
 def destroy_gpg(gpg: Optional[gnupg.GPG], keep_folder: bool = False) -> None:
+    """Cleans up the resources uses by a GPG object"""
     if gpg and os.path.exists(gpg.gnupghome):
         if keep_folder:
             for filename in os.listdir(gpg.gnupghome):
@@ -187,9 +194,11 @@ def check_signature(repo: str, dist: str, file_url: str,
                     gpg: gnupg.GPG, errors: RepoErrors,
                     signature_url: Optional[str] = None,
                     verify: Optional[str] = None) -> bool:
-    """Check the signature on a file. If the signature is detached (in a separate file)
-    its url can be specified with signature_url. It is expected gpg input already has
-    the public keys loaded. """
+    """
+    Check the signature on a file. If the signature is detached (in a separate file)
+    its url can be specified with signature_url. It is expected input gpg already has
+    the public keys loaded. 
+    """
 
     try:
         file_text = get_url(file_url, verify=verify).text
@@ -206,13 +215,15 @@ def check_signature(repo: str, dist: str, file_url: str,
             verified = gpg.verify(file_text)
 
         if not verified:
-            errors.add(repo, dist,
+            errors.add(
+                repo, dist,
                 f"Signature verification failed for {file_url} " +
                 (f"with the signature {signature_url}" if signature_url else "")
             )
             return False
     except HTTPError as e:
-        errors.add(repo, dist,
+        errors.add(
+            repo, dist,
             f"While checking signatures, could not access file at {e.response.url}: {e}"
         )
         return False
