@@ -1,7 +1,7 @@
 import datetime
 import hashlib
 import json
-import os
+from pathlib import Path
 import random
 import re
 import shutil
@@ -139,20 +139,19 @@ def _generate_temp_str() -> str:
     return path
 
 
-def initialize_gpg(urls: List[str], home_dir: Optional[str] = None,
+def initialize_gpg(urls: List[str], home_dir: Optional[Path] = None,
                    verify: Optional[str] = None) -> gnupg.GPG:
     """
     Initializes a GPG object using the public keys at the input urls.
     Raises HTTPError if a key url is invalid.
     """
-    _home_dir = home_dir
-    if _home_dir is None:
-        _home_dir = os.path.join(tempfile.gettempdir(), _generate_temp_str())
 
-    if not os.path.exists(_home_dir):
-        os.mkdir(_home_dir)
+    _home_dir = (Path(tempfile.gettempdir()) / _generate_temp_str()
+                 if home_dir is None else home_dir)
 
-    gpg = gnupg.GPG(gnupghome=_home_dir)
+    _home_dir.mkdir(exist_ok=True)
+
+    gpg = gnupg.GPG(gnupghome=str(_home_dir))
 
     for url in urls:
         try:
@@ -170,14 +169,15 @@ def initialize_gpg(urls: List[str], home_dir: Optional[str] = None,
 
 
 def destroy_gpg(gpg: Optional[gnupg.GPG], keep_folder: bool = False) -> None:
-    """Cleans up the resources uses by a GPG object"""
-    if gpg and os.path.exists(gpg.gnupghome):
+    """Cleans up the resources used by a GPG object"""
+    if gpg and Path(gpg.gnupghome).exists():
         if keep_folder:
-            for filename in os.listdir(gpg.gnupghome):
-                file_path = os.path.join(gpg.gnupghome, filename)
-                if os.path.isfile(file_path) or os.path.islink(file_path):
-                    os.unlink(file_path)
-                elif os.path.isdir(file_path):
+            home_path = Path(gpg.gnupghome)
+            for filename in home_path.iterdir():
+                file_path = home_path / filename
+                if file_path.is_file() or file_path.is_symlink():
+                    file_path.unlink()
+                elif file_path.is_dir():
                     shutil.rmtree(file_path)
         else:
             shutil.rmtree(gpg.gnupghome)
@@ -197,13 +197,13 @@ def check_signature(repo: str, dist: str, file_url: str,
         file_text = get_url(file_url, verify=verify).text
         if signature_url:
             sig_text = get_url(signature_url, verify=verify).text
-            sig_file_loc = os.path.join(gpg.gnupghome, "temp_sig_file.gpg")
+            sig_file_loc = Path(gpg.gnupghome) / "temp_sig_file.gpg"
 
             file = open(sig_file_loc, "w")
             file.write(sig_text)
             file.close()
 
-            verified = gpg.verify_data(sig_file_loc, file_text.encode())
+            verified = gpg.verify_data(str(sig_file_loc), file_text.encode())
         else:
             verified = gpg.verify(file_text)
 

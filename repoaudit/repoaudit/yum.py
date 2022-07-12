@@ -1,4 +1,4 @@
-import os
+from pathlib import Path
 import xml.etree.ElementTree as ET
 from xml.etree.ElementTree import Element as XMLElement
 import zlib
@@ -109,8 +109,11 @@ def _check_yum_signature(url: str, gpg: Optional[gnupg.GPG],
     if "suse" in url or "sles" in url:
         repomdkey_url = urljoin(url, "/repodata/repomd.xml.key")
         try:
-            gpg_temp = initialize_gpg([repomdkey_url], home_dir=os.path.join(
-                gpg.gnupghome, "temporary_gpg_susesles"), verify=verify)
+            gpg_temp = initialize_gpg(
+                [repomdkey_url],
+                home_dir=Path(gpg.gnupghome) / "temporary_gpg_susesles",
+                verify=verify
+            )
 
             success = (
                 success and
