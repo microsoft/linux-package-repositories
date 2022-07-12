@@ -1,5 +1,6 @@
 import os
 import xml.etree.ElementTree as ET
+from xml.etree.ElementTree import Element as XMLElement
 import zlib
 from typing import Optional
 
@@ -8,7 +9,7 @@ import gnupg
 from requests.exceptions import HTTPError
 
 from .utils import (MultiHash, ParseError, RepoErrors, check_repo_empty,
-                    check_signature, destroy_gpg, get_url, initialize_gpg, 
+                    check_signature, destroy_gpg, get_url, initialize_gpg,
                     package_output, urljoin)
 
 NS = {
@@ -131,17 +132,80 @@ def _check_yum_signature(url: str, gpg: Optional[gnupg.GPG],
         click.echo("Signature check failed")
 
 
+def _check_yum_packages(repo: str, packages: XMLElement, primary_url: str,
+                        errors: RepoErrors, verify: Optional[str] = None) -> None:
+    """Verifies the checksums for yum packages"""
+    proc_packages = 0
+
+    try:
+        package_count = len(packages)
+        click.echo(f"Found {package_count} packages.")
+
+        with click.progressbar(
+            packages,
+            label="Checking package(s)",
+        ) as bar:
+            for package in bar:
+                location = package.find("common:location", namespaces=NS).get("href")
+                checksum = package.find("common:checksum", namespaces=NS)
+                if location is None or checksum is None:
+                    errors.add(
+                        repo, RepoErrors.YUM_DIST,
+                        f"{primary_url} file malformed, "
+                        "location or checksum not found for a package."
+                    )
+                    continue
+
+                package_url = urljoin(repo, location)
+                digest = checksum.text
+
+                checksum_type = checksum.get("type")
+                if checksum_type is None:
+                    errors.add(
+                        repo, RepoErrors.YUM_DIST,
+                        f"{primary_url} file malformed, "
+                        "checksum entry has no type"
+                    )
+                    continue
+
+                if checksum_type == "sha":
+                    checksum_type = "sha1"
+                multihash = MultiHash([checksum_type])
+                try:
+                    response = get_url(f"{package_url}", verify=verify, stream=True)
+                except HTTPError as e:
+                    errors.add(
+                        repo, RepoErrors.YUM_DIST,
+                        f"Could not access package at {e.response.url}: {e}"
+                    )
+                    continue
+                for chunk in response.iter_content(chunk_size=CHUNK_SIZE):
+                    multihash.update(chunk)
+
+                if multihash.hexdigest(checksum_type) != digest:
+                    errors.add(
+                        repo, RepoErrors.YUM_DIST,
+                        f"Package {checksum_type} checksum mismatch "
+                        f"for '{package_url}'. Expected "
+                        f"'{digest}' but received '{multihash.hexdigest(checksum_type)}'."
+                    )
+                proc_packages += 1
+    except KeyboardInterrupt:
+        package_output(proc_packages)
+        raise
+
+    package_output(proc_packages)
+
+
 def check_yum_repo(url: str, gpg: Optional[gnupg.GPG],
                    errors: RepoErrors, verify: Optional[str] = None) -> None:
     """Validate a yum repo at url."""
     click.echo(f"Validating yum repo at {url}...")
     errors.add(url, None, None)  # add empty entry with no errors
 
-    proc_packages = 0
-
     try:
         if check_repo_empty(url, verify=verify):
-            package_output(proc_packages)
+            click.echo("Repository empty")
             return
 
         errors.add(url, RepoErrors.YUM_DIST, None)
@@ -200,58 +264,7 @@ def check_yum_repo(url: str, gpg: Optional[gnupg.GPG],
             raise ParseError
 
         packages = primary.findall("common:package", namespaces=NS)
-        package_count = len(packages)
-        click.echo(f"Found {package_count} packages.")
-
-        with click.progressbar(
-            packages,
-            label="Checking package(s)",
-        ) as bar:
-            for package in bar:
-                location = package.find("common:location", namespaces=NS).get("href")
-                checksum = package.find("common:checksum", namespaces=NS)
-                if location is None or checksum is None:
-                    errors.add(
-                        url, RepoErrors.YUM_DIST,
-                        f"{primary_url} file malformed, "
-                        "location or checksum not found for a package."
-                    )
-                    continue
-
-                package_url = urljoin(url, location)
-                digest = checksum.text
-
-                checksum_type = checksum.get("type")
-                if checksum_type is None:
-                    errors.add(
-                        url, RepoErrors.YUM_DIST,
-                        f"{primary_url} file malformed, "
-                        "checksum entry has no type"
-                    )
-                    continue
-
-                if checksum_type == "sha":
-                    checksum_type = "sha1"
-                multihash = MultiHash([checksum_type])
-                try:
-                    response = get_url(f"{package_url}", verify=verify, stream=True)
-                except HTTPError as e:
-                    errors.add(
-                        url, RepoErrors.YUM_DIST,
-                        f"Could not access package at {e.response.url}: {e}"
-                    )
-                    continue
-                for chunk in response.iter_content(chunk_size=CHUNK_SIZE):
-                    multihash.update(chunk)
-
-                if multihash.hexdigest(checksum_type) != digest:
-                    errors.add(
-                        url, RepoErrors.YUM_DIST,
-                        f"Package {checksum_type} checksum mismatch "
-                        f"for '{package_url}'. Expected "
-                        f"'{digest}' but received '{multihash.hexdigest(checksum_type)}'."
-                    )
-                proc_packages += 1
+        _check_yum_packages(url, packages, primary_url, errors, verify=verify)
 
     except HTTPError as e:
         errors.add(
@@ -259,9 +272,5 @@ def check_yum_repo(url: str, gpg: Optional[gnupg.GPG],
             f"Error when attempting to access {e.response.url}: {e}"
         )
     except ParseError:
+        click.echo("Parsing error")
         pass
-    except KeyboardInterrupt:
-        package_output(proc_packages)
-        raise
-
-    package_output(proc_packages)

@@ -126,27 +126,87 @@ def _check_apt_signatures(url: str, dist: str, gpg: Optional[gnupg.GPG],
         click.echo("Signature check failed")
 
 
+def _check_apt_packages(repo: str, dist: str, comp: str, arch: str, packages: str,
+                        errors: RepoErrors, verify: Optional[str] = None) -> None:
+    """Verifies the checksums for apt packages"""
+    proc_package = 0
+
+    try:
+        # count the paragraphs
+        package_count = len(re.findall(r"^Package: ", packages, re.MULTILINE))
+        click.echo(f"Checking {dist}/{comp}/{arch}. Found {package_count} package(s).")
+
+        dist_url = urljoin(repo, "dists", dist)
+        with click.progressbar(
+            Packages.iter_paragraphs(packages, use_apt_pkg=False),
+            label="Checking packages(s)",
+            length=package_count,
+        ) as bar:
+            for package in bar:
+                checksums = set(CHECKSUMS.keys()) & set(package.keys())
+                checksum_types = {key: CHECKSUMS[key] for key in checksums}
+                multihash = MultiHash(list(checksum_types.values()))
+
+                if "Filename" not in package:
+                    file_url = urljoin(dist_url, comp, f"binary-{arch}", "Packages")
+                    errors.add(
+                        repo, dist,
+                        f"{file_url} file has a malformed package entry"
+                        f"for package #{proc_package}"
+                    )
+                    continue
+
+                try:
+                    response = get_url(urljoin(repo, package["Filename"]),
+                                       verify=verify, stream=True)
+                except HTTPError as e:
+                    errors.add(
+                        repo, dist,
+                        f"Could not access package at {e.response.url}: {e}"
+                    )
+                    continue
+
+                for chunk in response.iter_content(chunk_size=CHUNK_SIZE):
+                    multihash.update(chunk)
+
+                for key, alg in checksum_types.items():
+                    if multihash.hexdigest(alg) != package[key]:
+                        errors.add(
+                            repo, dist,
+                            f"Package {key} checksum mismatch "
+                            f"for '{package['Filename']}'. "
+                            f"Expected '{package[key]}' but received "
+                            f"'{multihash.hexdigest(alg)}'."
+                        )
+                proc_package += 1
+    except KeyboardInterrupt:
+        package_output(proc_package)
+        raise
+
+    package_output(proc_package)
+
+
 def check_apt_repo(url: str, dists: Optional[Set[str]], gpg: Optional[gnupg.GPG],
                    errors: RepoErrors, verify: Optional[str] = None) -> None:
     """Validate an apt repo."""
 
     click.echo(f"Validating apt repo at {url}...")
     errors.add(url, None, None)  # add empty entry with no errors
-    proc_packages = 0
 
     if check_repo_empty(url, verify=verify):
-        package_output(proc_packages)
+        click.echo("Repository empty")
         return
 
     if not dists:
         try:
             dists = _find_dists(url, verify=verify)
         except HTTPError as e:
+            error_str = f"Could not determine dists from {url}: {e}"
             errors.add(
                 url, RepoErrors.APT_DIST,
-                f"Could not determine dists from {url}: {e}"
+                error_str
             )
-            package_output(proc_packages)
+            click.echo(error_str)
             return
 
     click.echo(f"Checking dists: {', '.join(dists)}")
@@ -201,62 +261,10 @@ def check_apt_repo(url: str, dists: Optional[Set[str]], gpg: Optional[gnupg.GPG]
                         )
                         continue
 
-                    # count the paragraphs
-                    package_count = len(re.findall(r"^Package: ", packages, re.MULTILINE))
-                    click.echo(f"Checking {dist}/{comp}/{arch}. Found {package_count} package(s).")
+                    _check_apt_packages(url, dist, comp, arch, packages, errors, verify=verify)
 
-                    package_num = 0
-                    with click.progressbar(
-                        Packages.iter_paragraphs(packages, use_apt_pkg=False),
-                        label="Checking packages(s)",
-                        length=package_count,
-                    ) as bar:
-                        for package in bar:
-                            checksums = set(CHECKSUMS.keys()) & set(package.keys())
-                            checksum_types = {key: CHECKSUMS[key] for key in checksums}
-                            multihash = MultiHash(list(checksum_types.values()))
-
-                            if "Filename" not in package:
-                                file_url = urljoin(dist_url, comp, f"binary-{arch}", "Packages")
-                                errors.add(
-                                    url, dist,
-                                    f"{file_url} file has a malformed package entry"
-                                    f"for package #{package_num}"
-                                )
-                                continue
-
-                            file_url = urljoin(url, package["Filename"])
-
-                            try:
-                                response = get_url(f"{file_url}", verify=verify, stream=True)
-                            except HTTPError as e:
-                                errors.add(
-                                    url, dist,
-                                    f"Could not access package at {e.response.url}: {e}"
-                                )
-                                continue
-
-                            for chunk in response.iter_content(chunk_size=CHUNK_SIZE):
-                                multihash.update(chunk)
-
-                            for key, alg in checksum_types.items():
-                                if multihash.hexdigest(alg) != package[key]:
-                                    errors.add(
-                                        url, dist,
-                                        f"Package {key} checksum mismatch "
-                                        f"for '{package['Filename']}'. "
-                                        f"Expected '{package[key]}' but received "
-                                        f"'{multihash.hexdigest(alg)}'."
-                                    )
-                            proc_packages += 1
-                            package_num += 1
         except HTTPError as e:
             errors.add(
                 url, dist,
                 f"Error when attempting to access {e.response.url}: {e}"
             )
-        except KeyboardInterrupt:
-            package_output(proc_packages)
-            raise
-
-    package_output(proc_packages)
