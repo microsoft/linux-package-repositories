@@ -23,7 +23,7 @@ def _find_dists(url: str, verify: Optional[str] = None) -> Set[str]:
     """Find apt distributions."""
     try:
         resp = get_url(urljoin(url, "dists"), verify=verify)
-    except HTTPError as e:
+    except HTTPError:
         raise
 
     links = re.findall(r"href=[\"'](.*)[\"']", resp.text)
@@ -230,7 +230,7 @@ def check_apt_repo(url: str, dists: Optional[Set[str]], gpg: Optional[gnupg.GPG]
 
             try:
                 release_file = Release(release)
-            except Exception as e:
+            except Exception:
                 errors.add(
                     url, dist,
                     f"{release_url} file malformed"

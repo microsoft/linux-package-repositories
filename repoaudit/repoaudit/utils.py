@@ -42,7 +42,7 @@ class MultiHash:
 
 class RepoErrors:
     """A class to keep track of repository errors. Each repository has an entry
-    for each distro in it. If there are no distros (i.e. yum repo) then 
+    for each distro in it. If there are no distros (i.e. yum repo) then
     YUM_DIST or APT_DIST can be used instead."""
 
     YUM_DIST = "yum_dist"
@@ -55,10 +55,10 @@ class RepoErrors:
         """
         - If just a repository is specified without a dist and it hasn't been added yet, it
         will have the state "empty".
-        - If a dist is specified, the repository it is a part of as well as 
+        - If a dist is specified, the repository it is a part of as well as
         the dist will have the state "ok".
-        - If an error is specified, a dist and repo must also be specified 
-        for which the error is a part of. Upon adding an error, the dist and 
+        - If an error is specified, a dist and repo must also be specified
+        for which the error is a part of. Upon adding an error, the dist and
         repo it is a part of will change to the state "error".
         """
 
@@ -164,7 +164,7 @@ def initialize_gpg(urls: List[str], home_dir: Optional[str] = None,
     for url in urls:
         try:
             resp = get_url(url, verify=verify)
-        except:
+        except Exception:
             if home_dir is None:
                 destroy_gpg(gpg)
             else:
@@ -197,7 +197,7 @@ def check_signature(repo: str, dist: str, file_url: str,
     """
     Check the signature on a file. If the signature is detached (in a separate file)
     its url can be specified with signature_url. It is expected input gpg already has
-    the public keys loaded. 
+    the public keys loaded.
     """
 
     try:
