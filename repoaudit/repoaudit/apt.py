@@ -77,7 +77,7 @@ def _check_apt_repo_metadata(url: str, dist: str, release_file: Release,
             if f"{file_name}.gz" not in files:
                 errors.add(
                     url, dist,
-                    f"Could not access file at {e.respose.url} : {e}"
+                    f"Could not access file at {e.response.url} : {e}"
                 )
                 success = False
             continue

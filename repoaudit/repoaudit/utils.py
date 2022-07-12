@@ -90,33 +90,26 @@ class RepoErrors:
                 self.errors[repo]["dists"][dist]["state"] = "error"
 
     def _dist_error_count(self, repo: str, dist: str):
-        if "dist_errors" in self.errors[repo]["dists"][dist]:
-            return len(self.errors[repo]["dists"][dist]["dist_errors"])
-
-        return 0
+        return len(self.errors[repo]["dists"][dist].get("dist_errors", []))
 
     def _repo_error_count(self, repo: str):
-        count = 0
         if "dists" in self.errors[repo]:
-            for dist, _ in self.errors[repo]["dists"].items():
-                count += self._dist_error_count(repo, dist)
-        return count
+            return sum([self._dist_error_count(repo, dist)
+                        for dist in self.errors[repo]["dists"].keys()])
+
+        return 0
 
     def error_count(self, repo: Optional[str] = None, dist: Optional[str] = None) -> int:
         """Return the number of errors in all repositories, in a single repository, or a single
         distro in a repository."""
-        count = 0
         if repo:
             if dist:
-                count = self._dist_error_count(repo, dist)
+                return self._dist_error_count(repo, dist)
             else:
-                count = self._repo_error_count(repo)
+                return self._repo_error_count(repo)
 
         else:
-            for repo_str, _ in self.errors.items():
-                count += self._repo_error_count(repo_str)
-
-        return count
+            return sum([self._repo_error_count(repo_str) for repo_str in self.errors.keys()])
 
     def get_output(self) -> str:
         return self.get_json()

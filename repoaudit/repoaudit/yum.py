@@ -2,7 +2,7 @@ import os
 import xml.etree.ElementTree as ET
 from xml.etree.ElementTree import Element as XMLElement
 import zlib
-from typing import Optional
+from typing import List, Optional
 
 import click
 import gnupg
@@ -132,7 +132,7 @@ def _check_yum_signature(url: str, gpg: Optional[gnupg.GPG],
         click.echo("Signature check failed")
 
 
-def _check_yum_packages(repo: str, packages: XMLElement, primary_url: str,
+def _check_yum_packages(repo: str, packages: List[XMLElement], primary_url: str,
                         errors: RepoErrors, verify: Optional[str] = None) -> None:
     """Verifies the checksums for yum packages"""
     proc_packages = 0

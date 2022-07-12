@@ -19,7 +19,7 @@ file_option = click.option(
     "--output",
     "-o",
     help=(
-        "Output results to a specified file"
+        "Output results to a specified json file (e.g. output.json)"
     ),
 )
 
@@ -32,6 +32,19 @@ pubkey_option = click.option(
         "sure they match one of the public keys."
     )
 )
+
+
+def _initialize_gpg_cmdline(pubkeys: str):
+    if pubkeys:
+        try:
+            return initialize_gpg(pubkeys.split(","))
+        except HTTPError as e:
+            raise click.ClickException(
+                f"{e}\n"
+                "Please check the url for the public key"
+            )
+
+    return None
 
 
 @click.group()
@@ -58,16 +71,7 @@ def apt(recursive: bool, url: str, dists: str, output: str, pubkeys: str) -> Non
     else:
         dist_set = None
 
-    if pubkeys:
-        try:
-            gpg = initialize_gpg(pubkeys.split(","))
-        except HTTPError as e:
-            raise click.ClickException(
-                f"{e}\n"
-                "Please check the url for the public key"
-            )
-    else:
-        gpg = None
+    gpg = _initialize_gpg_cmdline(pubkeys)
 
     errors = RepoErrors()
     try:
@@ -92,16 +96,7 @@ def yum(recursive: bool, url: str, output: str, pubkeys: str) -> None:
     else:
         urls = [url]
 
-    if pubkeys:
-        try:
-            gpg = initialize_gpg(pubkeys.split(","))
-        except HTTPError as e:
-            raise click.ClickException(
-                f"{e}\n"
-                "Please check the url for the public key"
-            )
-    else:
-        gpg = None
+    gpg = _initialize_gpg_cmdline(pubkeys)
 
     errors = RepoErrors()
 
