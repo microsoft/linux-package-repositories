@@ -1,3 +1,4 @@
+from collections import defaultdict
 import datetime
 import hashlib
 import json
@@ -49,7 +50,7 @@ class RepoErrors:
     APT_DIST = "apt_dist"
 
     def __init__(self) -> None:
-        self.errors = dict()
+        self.errors = defaultdict(lambda: {"state": "empty"})
 
     def add(self, repo: str, dist: Optional[str], error: Optional[str]) -> None:
         """
@@ -62,11 +63,7 @@ class RepoErrors:
         repo it is a part of will change to the state "error".
         """
 
-        if repo not in self.errors:
-            self.errors[repo] = dict()
-            self.errors[repo]["state"] = "empty"
-
-        # update time
+        # update time which also adds repo to dictionary
         self.errors[repo]["time"] = str(datetime.datetime.utcnow())
 
         # add dist
