@@ -16,6 +16,7 @@ setup(
         "click",
         "python-debian",
         "requests",
+        "python-gnupg",
     ],
     py_modules=['repoaudit'],
     entry_points={
