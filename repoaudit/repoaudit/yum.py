@@ -108,19 +108,14 @@ def _check_yum_signature(url: str, gpg: Optional[gnupg.GPG],
 
     if "suse" in url or "sles" in url:
         repomdkey_url = urljoin(url, "/repodata/repomd.xml.key")
+
+        gpg_temp = None
         try:
             gpg_temp = initialize_gpg(
                 [repomdkey_url],
                 home_dir=Path(gpg.gnupghome) / "temporary_gpg_susesles",
                 verify=verify
             )
-
-            success = (
-                success and
-                check_signature(url, RepoErrors.YUM_DIST, repomd_url,
-                                gpg_temp, errors, signature_url=repomdsig_url, verify=verify)
-            )
-            destroy_gpg(gpg_temp, keep_folder=True)
         except HTTPError as e:
             errors.add(
                 url, RepoErrors.YUM_DIST,
@@ -128,6 +123,14 @@ def _check_yum_signature(url: str, gpg: Optional[gnupg.GPG],
                 f"key file {repomdkey_url} does not exist for SUSE repo: {e}"
             )
             success = False
+        else:
+            success = (
+                success and
+                check_signature(url, RepoErrors.YUM_DIST, repomd_url,
+                                gpg_temp, errors, signature_url=repomdsig_url, verify=verify)
+            )
+        finally:
+            destroy_gpg(gpg_temp, keep_folder=True)
 
     if success:
         click.echo("Signature check successful")

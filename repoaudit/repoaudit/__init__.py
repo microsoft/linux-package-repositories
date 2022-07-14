@@ -1,4 +1,5 @@
 import click
+from contextlib import contextmanager
 from requests.exceptions import HTTPError
 
 from .apt import check_apt_repo
@@ -34,17 +35,21 @@ pubkey_option = click.option(
 )
 
 
-def _initialize_gpg_cmdline(pubkeys: str):
+@contextmanager
+def _gpg_cmdline(pubkeys: str):
+    gpg = None
     if pubkeys:
         try:
-            return initialize_gpg(pubkeys.split(","))
+            gpg = initialize_gpg(pubkeys.split(","))
         except HTTPError as e:
             raise click.ClickException(
                 f"{e}\n"
                 "Please check the url for the public key"
             )
-
-    return None
+    try:
+        yield gpg
+    finally:
+        destroy_gpg(gpg)
 
 
 @click.group()
@@ -71,16 +76,15 @@ def apt(recursive: bool, url: str, dists: str, output: str, pubkeys: str) -> Non
     else:
         dist_set = None
 
-    gpg = _initialize_gpg_cmdline(pubkeys)
-
     errors = RepoErrors()
-    try:
-        for repo_url in urls:
-            check_apt_repo(repo_url, dist_set, gpg, errors)
-    except KeyboardInterrupt:
-        pass
 
-    destroy_gpg(gpg)
+    with _gpg_cmdline(pubkeys) as gpg:
+        try:
+            for repo_url in urls:
+                check_apt_repo(repo_url, dist_set, gpg, errors)
+        except KeyboardInterrupt:
+            pass
+
     output_result(errors, output)
 
 
@@ -96,15 +100,13 @@ def yum(recursive: bool, url: str, output: str, pubkeys: str) -> None:
     else:
         urls = [url]
 
-    gpg = _initialize_gpg_cmdline(pubkeys)
-
     errors = RepoErrors()
 
-    try:
-        for repo_url in urls:
-            check_yum_repo(repo_url, gpg, errors)
-    except KeyboardInterrupt:
-        pass
+    with _gpg_cmdline(pubkeys) as gpg:
+        try:
+            for repo_url in urls:
+                check_yum_repo(repo_url, gpg, errors)
+        except KeyboardInterrupt:
+            pass
 
-    destroy_gpg(gpg)
     output_result(errors, output)

@@ -3,11 +3,10 @@ import datetime
 import hashlib
 import json
 from pathlib import Path
-import random
 import re
 import shutil
-import string
 import tempfile
+from uuid import uuid4
 import gnupg
 from typing import List, Optional
 
@@ -128,23 +127,16 @@ def get_repo_urls(url: str, verify: Optional[str] = None) -> List[str]:
     return [urljoin(url, link) for link in links if ".." not in link]
 
 
-def _generate_temp_str() -> str:
-    """Generates a random string for temporary files and folders"""
-    path = "temp_"
-    path += ''.join(random.choices(string.ascii_lowercase +
-                                   string.digits + string.ascii_uppercase, k=32))
-    return path
-
-
 def initialize_gpg(urls: List[str], home_dir: Optional[Path] = None,
                    verify: Optional[str] = None) -> gnupg.GPG:
     """
     Initializes a GPG object using the public keys at the input urls.
     Raises HTTPError if a key url is invalid.
     """
-
-    _home_dir = (Path(tempfile.gettempdir()) / _generate_temp_str()
-                 if home_dir is None else home_dir)
+    if home_dir is None:
+        _home_dir = Path(tempfile.gettempdir()) / f"temp_{uuid4().hex}"
+    else:
+        _home_dir = home_dir
 
     _home_dir.mkdir(exist_ok=True)
 
@@ -243,11 +235,12 @@ def check_repo_empty(url: str, verify: Optional[str] = None) -> bool:
     """Returns true if repo is empty, false otherwise."""
     try:
         resp = get_url(url, verify=verify)
-        content = re.findall(r"href=[\"'](.*)[\"']", resp.text)
-        content = list(filter(lambda c: ".." not in c, content))
-        return len(content) == 0
     except HTTPError:
         return True
+
+    content = re.findall(r"href=[\"'](.*)[\"']", resp.text)
+    content = list(filter(lambda c: ".." not in c, content))
+    return len(content) == 0
 
 
 def urljoin(*paths: str) -> str:
