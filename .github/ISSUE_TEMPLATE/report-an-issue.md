@@ -1,10 +1,7 @@
 ---
 name: Report an issue
 about: Help us improve our service by reporting issues you are experiencing.
-title: 'Report an issue'
-labels: 
-assignees: ''
-
+labels: ["bug"]
 ---
 
 **Describe the issue**
