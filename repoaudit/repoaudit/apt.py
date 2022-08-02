@@ -103,7 +103,7 @@ def _check_apt_signatures(url: str, dist: str, gpg: Optional[gnupg.GPG],
 
     success = (
         check_signature(url, dist, release_url, gpg, errors,
-                        signature_url=releasesig_url, verify=verify) and
+                        signature_url=releasesig_url, verify=verify) &
         check_signature(url, dist, inrelease_url, gpg,
                         errors, verify=verify)
     )

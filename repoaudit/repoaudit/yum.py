@@ -125,7 +125,7 @@ def _check_yum_signature(url: str, gpg: Optional[gnupg.GPG],
             success = False
         else:
             success = (
-                success and
+                success &
                 check_signature(url, RepoErrors.YUM_DIST, repomd_url,
                                 gpg_temp, errors, signature_url=repomdsig_url, verify=verify)
             )
