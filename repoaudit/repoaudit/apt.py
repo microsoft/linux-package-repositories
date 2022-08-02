@@ -214,7 +214,7 @@ def check_apt_repo(url: str, dists: Optional[Set[str]], gpg: Optional[gnupg.GPG]
 
             _check_apt_repo_metadata(url, dist, release_file, errors, verify=verify)
 
-            if "Components" not in release_file and "Architectures" not in release_file:
+            if "Components" not in release_file or "Architectures" not in release_file:
                 errors.add(
                     url, dist,
                     f"{release_url} file malformed"
