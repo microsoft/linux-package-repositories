@@ -1,3 +1,4 @@
+from collections import defaultdict
 import re
 import zlib
 from typing import Optional, Set
@@ -7,11 +8,13 @@ from debian.deb822 import Packages, Release
 from requests.exceptions import HTTPError
 import gnupg
 
-from .utils import (MultiHash, RepoErrors, check_repo_empty, check_signature,
-                    get_url, urljoin, package_output)
+from .utils import (RepoErrors, check_repo_empty, check_signature,
+                    get_url, urljoin, package_output, verify_checksum)
+
 
 CHECKSUMS = {
     "MD5sum": "md5",
+    "MD5Sum": "md5",
     "SHA1": "sha1",
     "SHA256": "sha256",
     "SHA512": "sha512",
@@ -48,17 +51,15 @@ def _check_apt_repo_metadata(url: str, dist: str, release_file: Release,
     """Check repo metadata for checksum mismatches."""
 
     dist_url = urljoin(url, "dists", dist)
-    checksum_types = {key: CHECKSUMS[key] for key in CHECKSUMS.keys() if key in release_file}
+    checksums = set(CHECKSUMS.keys()) & set(release_file)
 
     success = True
 
-    files = dict()
-    for key in checksum_types:
+    files = defaultdict(lambda: [])
+    for key in checksums:
         for file_def in release_file[key]:
             filename = file_def['name']
-            if filename not in files:
-                files[filename] = dict()
-            files[filename][key] = file_def[key.lower()]
+            files[filename].append((CHECKSUMS[key], file_def[key.lower()]))
 
     if not files:
         errors.add(
@@ -67,33 +68,20 @@ def _check_apt_repo_metadata(url: str, dist: str, release_file: Release,
         )
         success = False
 
-    for file_name, checksums in files.items():
-        multihash = MultiHash(list(checksum_types.values()))
+    for file_name, expected_checksums in files.items():
+        file_loc = urljoin("dists", dist, file_name)
+        error_if_missing = f"{file_name}.gz" not in files
 
-        file_url = urljoin(dist_url, file_name)
-        try:
-            response = get_url(f"{file_url}", verify=verify, stream=True)
-        except HTTPError as e:
-            if f"{file_name}.gz" not in files:
-                errors.add(
-                    url, dist,
-                    f"Could not access file at {e.response.url} : {e}"
-                )
-                success = False
-            continue
-
-        for chunk in response.iter_content(chunk_size=CHUNK_SIZE):
-            multihash.update(chunk)
-
-        for key, alg in checksum_types.items():
-            if multihash.hexdigest(alg) != checksums[key]:
-                errors.add(
-                    url, dist,
-                    f"Metadata {key} checksum mismatch for '{file_name}'. "
-                    f"Expected '{checksums[key]}' but received "
-                    f"'{multihash.hexdigest(alg)}'."
-                )
-                success = False
+        success &= verify_checksum(
+            url,
+            dist,
+            file_loc,
+            "metadata",
+            expected_checksums,
+            errors,
+            error_if_missing=error_if_missing,
+            verify=verify
+        )
 
     if success:
         click.echo("Metadata check successful")
@@ -143,10 +131,6 @@ def _check_apt_packages(repo: str, dist: str, comp: str, arch: str, packages: st
             length=package_count,
         ) as bar:
             for package in bar:
-                checksums = set(CHECKSUMS.keys()) & set(package.keys())
-                checksum_types = {key: CHECKSUMS[key] for key in checksums}
-                multihash = MultiHash(list(checksum_types.values()))
-
                 if "Filename" not in package:
                     file_url = urljoin(dist_url, comp, f"binary-{arch}", "Packages")
                     errors.add(
@@ -156,28 +140,19 @@ def _check_apt_packages(repo: str, dist: str, comp: str, arch: str, packages: st
                     )
                     continue
 
-                try:
-                    response = get_url(urljoin(repo, package["Filename"]),
-                                       verify=verify, stream=True)
-                except HTTPError as e:
-                    errors.add(
-                        repo, dist,
-                        f"Could not access package at {e.response.url}: {e}"
-                    )
-                    continue
+                checksums = set(CHECKSUMS.keys()) & set(package.keys())
+                expected_checksums = [(CHECKSUMS[key], package[key]) for key in checksums]
 
-                for chunk in response.iter_content(chunk_size=CHUNK_SIZE):
-                    multihash.update(chunk)
+                verify_checksum(
+                    repo,
+                    dist,
+                    package["Filename"],
+                    "package",
+                    expected_checksums,
+                    errors,
+                    verify=verify
+                )
 
-                for key, alg in checksum_types.items():
-                    if multihash.hexdigest(alg) != package[key]:
-                        errors.add(
-                            repo, dist,
-                            f"Package {key} checksum mismatch "
-                            f"for '{package['Filename']}'. "
-                            f"Expected '{package[key]}' but received "
-                            f"'{multihash.hexdigest(alg)}'."
-                        )
                 proc_package += 1
     except KeyboardInterrupt:
         package_output(proc_package)

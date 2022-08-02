@@ -8,13 +8,15 @@ import shutil
 import tempfile
 from uuid import uuid4
 import gnupg
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
 import click
 import requests
 from requests.exceptions import HTTPError
 from requests.adapters import HTTPAdapter
 from requests.packages.urllib3.util.retry import Retry
+
+CHUNK_SIZE = 2 * 1024 * 1024
 
 
 class ParseError(Exception):
@@ -211,6 +213,52 @@ def check_signature(repo: str, dist: str, file_url: str,
         return False
 
     return True
+
+
+def verify_checksum(
+    repo: str,
+    dist: str,
+    file_loc_in_repo: str,
+    file_type: str,
+    expected_checksums: List[Tuple[str, str]],
+    errors: RepoErrors,
+    error_if_missing: bool = True,
+    verify: Optional[str] = None
+) -> bool:
+    try:
+        response = get_url(urljoin(repo, file_loc_in_repo), verify=verify, stream=True)
+    except HTTPError as e:
+        if error_if_missing:
+            errors.add(
+                repo, dist,
+                f"Could not access file at {e.response.url}: {e}"
+            )
+        return not error_if_missing
+
+    checksum_algorithms = [elem[0] for elem in expected_checksums]
+    multihash = MultiHash(checksum_algorithms)
+
+    for chunk in response.iter_content(chunk_size=CHUNK_SIZE):
+        multihash.update(chunk)
+
+    success = True
+    error_str = f"{file_type.capitalize()} checksum mismatch for {file_loc_in_repo}: ["
+
+    for alg, expected in expected_checksums:
+        if multihash.hexdigest(alg) != expected:
+            comma = '' if success else ', '
+            error_str += (
+                f"{comma}{alg.upper()} expected '{expected}'"
+                f"but received '{multihash.hexdigest(alg)}'"
+            )
+            success = False
+
+    error_str += "]"
+
+    if not success:
+        errors.add(repo, dist, error_str)
+
+    return success
 
 
 def output_result(errors: RepoErrors, file_name: Optional[str]) -> bool:
