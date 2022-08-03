@@ -225,13 +225,21 @@ def verify_checksum(
     error_if_missing: bool = True,
     verify: Optional[str] = None
 ) -> bool:
+    """
+    Verify the checksum of a file in a repository. file_loc_in_repo is the
+    location of the file relative to the repository url. file_type indicates
+    whether a "metadata" or "package" file is being checked and is used for
+    error messages. expected_checksums is an array of tuples with the format
+    [(checksum_algorithm, expected_checksum), ...]. If error_if_missing is
+    set to False, then no error will be reported if the file is missing.
+    """
     try:
         response = get_url(urljoin(repo, file_loc_in_repo), verify=verify, stream=True)
     except HTTPError as e:
         if error_if_missing:
             errors.add(
                 repo, dist,
-                f"Could not access file at {e.response.url}: {e}"
+                f"Could not access {file_type} file at {e.response.url}: {e}"
             )
         return not error_if_missing
 
@@ -242,13 +250,13 @@ def verify_checksum(
         multihash.update(chunk)
 
     success = True
-    error_str = f"{file_type.capitalize()} checksum mismatch for {file_loc_in_repo}: ["
+    error_str = f"{file_type.capitalize()} checksum mismatch for '{file_loc_in_repo}': ["
 
     for alg, expected in expected_checksums:
         if multihash.hexdigest(alg) != expected:
             comma = '' if success else ', '
             error_str += (
-                f"{comma}{alg.upper()} expected '{expected}'"
+                f"{comma}{alg.upper()} expected '{expected}' "
                 f"but received '{multihash.hexdigest(alg)}'"
             )
             success = False
