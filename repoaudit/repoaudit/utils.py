@@ -249,24 +249,24 @@ def verify_checksum(
     for chunk in response.iter_content(chunk_size=CHUNK_SIZE):
         multihash.update(chunk)
 
-    success = True
-    error_str = f"{file_type.capitalize()} checksum mismatch for '{file_loc_in_repo}': ["
+    checksum_errors = []
 
     for alg, expected in expected_checksums:
         if multihash.hexdigest(alg) != expected:
-            comma = '' if success else ', '
-            error_str += (
-                f"{comma}{alg.upper()} expected '{expected}' "
+            checksum_errors.append(
+                f"{alg.upper()} expected '{expected}' "
                 f"but received '{multihash.hexdigest(alg)}'"
             )
-            success = False
 
-    error_str += "]"
+    if checksum_errors:
+        errors.add(
+            repo, dist,
+            f"{file_type.capitalize()} checksum mismatch for '{file_loc_in_repo}': "
+            f'[{", ".join(checksum_errors)}]'
+        )
+        return False
 
-    if not success:
-        errors.add(repo, dist, error_str)
-
-    return success
+    return True
 
 
 def output_result(errors: RepoErrors, file_name: Optional[str]) -> bool:

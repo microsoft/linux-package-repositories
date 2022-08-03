@@ -55,7 +55,7 @@ def _check_apt_repo_metadata(url: str, dist: str, release_file: Release,
 
     success = True
 
-    files = defaultdict(lambda: [])
+    files = defaultdict(list)
     for key in checksums:
         for file_def in release_file[key]:
             filename = file_def['name']
