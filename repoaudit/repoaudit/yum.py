@@ -8,9 +8,9 @@ import click
 import gnupg
 from requests.exceptions import HTTPError
 
-from .utils import (MultiHash, ParseError, RepoErrors, check_repo_empty,
+from .utils import (ParseError, RepoErrors, check_repo_empty,
                     check_signature, destroy_gpg, get_url, initialize_gpg,
-                    package_output, urljoin)
+                    package_output, urljoin, verify_checksum)
 
 NS = {
     "common": "http://linux.duke.edu/metadata/common",
@@ -57,34 +57,21 @@ def _check_yum_repo_metadata(url: str, repomd: ET,
                     )
                     raise ParseError
 
-                file_url = urljoin(url, file_loc)
-
                 if checksum_type == "sha":
                     checksum_type = "sha1"
-                multihash = MultiHash([checksum_type])
 
-                ref_checksum = file_checksum_info.text
+                expected_checksums = [(checksum_type, file_checksum_info.text)]
 
-                try:
-                    response = get_url(f"{file_url}", verify=verify, stream=True)
-                except HTTPError as e:
-                    errors.add(
-                        url, RepoErrors.YUM_DIST,
-                        f"Could not access file at {e.response.url}: {e}"
-                    )
-                    success = False
-                    continue
+                success &= verify_checksum(
+                    url,
+                    RepoErrors.YUM_DIST,
+                    file_loc,
+                    "metadata",
+                    expected_checksums,
+                    errors,
+                    verify=verify
+                )
 
-                for chunk in response.iter_content(chunk_size=CHUNK_SIZE):
-                    multihash.update(chunk)
-
-                if multihash.hexdigest(checksum_type) != ref_checksum:
-                    errors.add(
-                        url, RepoErrors.YUM_DIST,
-                        f"Metadata {checksum_type} checksum mismatch for '{file_url}'. Expected "
-                        f"'{ref_checksum}' but received '{multihash.hexdigest(checksum_type)}'."
-                    )
-                    success = False
     except ParseError:
         success = False
 
@@ -125,7 +112,7 @@ def _check_yum_signature(url: str, gpg: Optional[gnupg.GPG],
             success = False
         else:
             success = (
-                success and
+                success &
                 check_signature(url, RepoErrors.YUM_DIST, repomd_url,
                                 gpg_temp, errors, signature_url=repomdsig_url, verify=verify)
             )
@@ -162,9 +149,6 @@ def _check_yum_packages(repo: str, packages: List[XMLElement], primary_url: str,
                     )
                     continue
 
-                package_url = urljoin(repo, location)
-                digest = checksum.text
-
                 checksum_type = checksum.get("type")
                 if checksum_type is None:
                     errors.add(
@@ -176,25 +160,19 @@ def _check_yum_packages(repo: str, packages: List[XMLElement], primary_url: str,
 
                 if checksum_type == "sha":
                     checksum_type = "sha1"
-                multihash = MultiHash([checksum_type])
-                try:
-                    response = get_url(f"{package_url}", verify=verify, stream=True)
-                except HTTPError as e:
-                    errors.add(
-                        repo, RepoErrors.YUM_DIST,
-                        f"Could not access package at {e.response.url}: {e}"
-                    )
-                    continue
-                for chunk in response.iter_content(chunk_size=CHUNK_SIZE):
-                    multihash.update(chunk)
 
-                if multihash.hexdigest(checksum_type) != digest:
-                    errors.add(
-                        repo, RepoErrors.YUM_DIST,
-                        f"Package {checksum_type} checksum mismatch "
-                        f"for '{package_url}'. Expected "
-                        f"'{digest}' but received '{multihash.hexdigest(checksum_type)}'."
-                    )
+                expected_checksums = [(checksum_type, checksum.text)]
+
+                verify_checksum(
+                    repo,
+                    RepoErrors.YUM_DIST,
+                    location,
+                    "package",
+                    expected_checksums,
+                    errors,
+                    verify=verify
+                )
+
                 proc_packages += 1
     except KeyboardInterrupt:
         package_output(proc_packages)

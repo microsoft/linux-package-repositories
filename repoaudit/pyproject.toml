@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "repoaudit"
-version = "0.2.0"
+version = "0.2.1"
 description = "CLI to validate yum/apt repositories"
 authors = []
 readme = "README.md"

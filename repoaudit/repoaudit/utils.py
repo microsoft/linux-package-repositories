@@ -8,13 +8,15 @@ import shutil
 import tempfile
 from uuid import uuid4
 import gnupg
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
 import click
 import requests
 from requests.exceptions import HTTPError
 from requests.adapters import HTTPAdapter
 from requests.packages.urllib3.util.retry import Retry
+
+CHUNK_SIZE = 2 * 1024 * 1024
 
 
 class ParseError(Exception):
@@ -207,6 +209,60 @@ def check_signature(repo: str, dist: str, file_url: str,
         errors.add(
             repo, dist,
             f"While checking signatures, could not access file at {e.response.url}: {e}"
+        )
+        return False
+
+    return True
+
+
+def verify_checksum(
+    repo: str,
+    dist: str,
+    file_loc_in_repo: str,
+    file_type: str,
+    expected_checksums: List[Tuple[str, str]],
+    errors: RepoErrors,
+    error_if_missing: bool = True,
+    verify: Optional[str] = None
+) -> bool:
+    """
+    Verify the checksum of a file in a repository. file_loc_in_repo is the
+    location of the file relative to the repository url. file_type indicates
+    whether a "metadata" or "package" file is being checked and is used for
+    error messages. expected_checksums is an array of tuples with the format
+    [(checksum_algorithm, expected_checksum), ...]. If error_if_missing is
+    set to False, then no error will be reported if the file is missing.
+    """
+    try:
+        response = get_url(urljoin(repo, file_loc_in_repo), verify=verify, stream=True)
+    except HTTPError as e:
+        if error_if_missing:
+            errors.add(
+                repo, dist,
+                f"Could not access {file_type} file at {e.response.url}: {e}"
+            )
+        return not error_if_missing
+
+    checksum_algorithms = [elem[0] for elem in expected_checksums]
+    multihash = MultiHash(checksum_algorithms)
+
+    for chunk in response.iter_content(chunk_size=CHUNK_SIZE):
+        multihash.update(chunk)
+
+    checksum_errors = []
+
+    for alg, expected in expected_checksums:
+        if multihash.hexdigest(alg) != expected:
+            checksum_errors.append(
+                f"{alg.upper()} expected '{expected}' "
+                f"but received '{multihash.hexdigest(alg)}'"
+            )
+
+    if checksum_errors:
+        errors.add(
+            repo, dist,
+            f"{file_type.capitalize()} checksum mismatch for '{file_loc_in_repo}': "
+            f'[{", ".join(checksum_errors)}]'
         )
         return False
 
