@@ -10,7 +10,7 @@ labels: ["bug"]
 **When did the issue occur?**
 <!-- Be as accurate as you can. -->
 
-**If appplicable, what package did you attempt to install, and from which repo?**
+**If applicable, what package did you attempt to install, and from which repo?**
 
 **Steps to Reproduce**
 <!-- Steps to reproduce the behavior (if applicable) -->
