@@ -34,16 +34,6 @@ pubkey_option = click.option(
     )
 )
 
-apt_sources_option = click.option(
-    "--apt-source",
-    "-a",
-    required=False,
-    help=(
-        "Supply apt sources.list file. When provided, all entries"
-        "will be parsed for repo urls and their respective dists."
-    )
-)
-
 def _validate_apt_url(recursive: bool, url: str, dists: str, output: str, pubkeys: str) -> None:
     """Validate an apt repository at url"""
     if recursive:
@@ -94,7 +84,16 @@ def main() -> None:
 @recursive_option
 @click.argument("url", required=False)
 @click.option("--dists", required=False, help="Comma separated list of distributions.")
-@click.option("--apt-source", "-a", required=False, type=click.File("r"))
+@click.option(
+    "--apt-source",
+    "-a",
+    required=False,
+    type=click.File("r"),
+    help=(
+        "Supply apt sources.list file. When provided, all entries"
+        "will be parsed for repo urls and their respective dists."
+    )
+)
 @file_option
 @pubkey_option
 def apt(recursive: bool, url: str, dists: str, apt_source: str, output: str, pubkeys: str) -> None:
