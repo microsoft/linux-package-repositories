@@ -94,16 +94,7 @@ def main() -> None:
 @recursive_option
 @click.argument("url", required=False)
 @click.option("--dists", required=False, help="Comma separated list of distributions.")
-@click.option(
-    "--apt-source",
-    "-a",
-    required=False,
-    type=click.File("r"),
-    help=(
-        "Supply apt sources.list file. When provided, all entries"
-        "will be parsed for repo urls and their respective dists."
-    )
-)
+@click.option("--apt-source", "-a", required=False, type=click.File("r"))
 @file_option
 @pubkey_option
 def apt(recursive: bool, url: str, dists: str, apt_source: str, output: str, pubkeys: str) -> None:
@@ -121,7 +112,7 @@ def apt(recursive: bool, url: str, dists: str, apt_source: str, output: str, pub
                 else:
                     raise Exception("No URL found")
                 url = fields[index]
-                dists = ','.join(fields[(index + 1):])
+                dists = fields[(index + 1)]
                 _validate_apt_url(recursive, url, dists, output, pubkeys)
         except IOError:
             print("Error: Unable to open file")
