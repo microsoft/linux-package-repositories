@@ -34,6 +34,7 @@ pubkey_option = click.option(
     )
 )
 
+
 def _validate_apt_url(recursive: bool, url: str, dists: str, output: str, pubkeys: str) -> None:
     """Validate an apt repository at url"""
     if recursive:
@@ -56,6 +57,7 @@ def _validate_apt_url(recursive: bool, url: str, dists: str, output: str, pubkey
             pass
 
     output_result(errors, output)
+
 
 @contextmanager
 def _gpg_cmdline(pubkeys: str):
