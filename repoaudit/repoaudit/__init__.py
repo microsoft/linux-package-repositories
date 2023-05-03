@@ -44,8 +44,8 @@ apt_sources_option = click.option(
     )
 )
 
-def apt_helper(recursive: bool, url: str, dists: str, output: str, pubkeys: str) -> None:
-    """Helps apt function validate an apt repository at url"""
+def _validate_apt_url(recursive: bool, url: str, dists: str, output: str, pubkeys: str) -> None:
+    """Validate an apt repository at url"""
     if recursive:
         urls = get_repo_urls(url)
     else:
@@ -92,23 +92,41 @@ def main() -> None:
 
 @main.command()
 @recursive_option
-@click.argument("url")
-@click.option("--dists", help="Comma separated list of distributions.")
-@apt_sources_option
+@click.argument("url", required=False)
+@click.option("--dists", required=False, help="Comma separated list of distributions.")
+@click.option(
+    "--apt-source",
+    "-a",
+    required=False,
+    type=click.File("r"),
+    help=(
+        "Supply apt sources.list file. When provided, all entries"
+        "will be parsed for repo urls and their respective dists."
+    )
+)
 @file_option
 @pubkey_option
 def apt(recursive: bool, url: str, dists: str, apt_source: str, output: str, pubkeys: str) -> None:
     """Validate an apt repository at URL."""
     if apt_source:
-        with open(apt_source, "r") as f:
-            lines = [line.strip() for line in f if line.startswith("deb")]
+        try:
+            lines = [line.strip() for line in apt_source if line.startswith("deb")]
             for line in lines:
                 fields = line.split(" ")
-                _url = fields[1]
-                _dists = ','.join(fields[slice(2, len(fields))])
-                apt_helper(recursive, _url, _dists, output, pubkeys)
+                index: int
+                if (fields[1].startswith("http")):
+                    index = 1
+                elif (fields[2].startswith("http")):
+                    index = 2
+                else:
+                    raise Exception("No URL found")
+                url = fields[index]
+                dists = ','.join(fields[(index + 1):])
+                _validate_apt_url(recursive, url, dists, output, pubkeys)
+        except IOError:
+            print("Error: Unable to open file")
     else:
-        apt_helper(recursive, url, dists, output, pubkeys)
+        _validate_apt_url(recursive, url, dists, output, pubkeys)
 
 
 @main.command()
