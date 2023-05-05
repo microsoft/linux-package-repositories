@@ -16,11 +16,17 @@ jobs:
       - name: Install Poetry
         uses: snok/install-poetry@v1
       - name: Install dependencies
-        run: |
-          cd repoaudit && poetry install
+        working-directory: ./repoaudit
+        run: poetry install
       - name: Check flake8
-        run: |
-          cd repoaudit && poetry run flake8 --config .flake8.cfg .
+        working-directory: ./repoaudit
+        run: poetry run flake8 .
+      - name: Check black
+        working-directory: ./repoaudit
+        run: poetry run black --check --diff .
+      - name: Check isort
+        working-directory: ./repoaudit
+        run: poetry run isort -c .
 
   test:
     runs-on: ubuntu-latest

@@ -1,9 +1,10 @@
-import click
 from contextlib import contextmanager
+
+import click
 from requests.exceptions import HTTPError
 
 from .apt import check_apt_repo
-from .utils import RepoErrors, destroy_gpg, initialize_gpg, output_result, get_repo_urls
+from .utils import RepoErrors, destroy_gpg, get_repo_urls, initialize_gpg, output_result
 from .yum import check_yum_repo
 
 recursive_option = click.option(
@@ -19,9 +20,7 @@ recursive_option = click.option(
 file_option = click.option(
     "--output",
     "-o",
-    help=(
-        "Output results to a specified json file (e.g. output.json)"
-    ),
+    help=("Output results to a specified json file (e.g. output.json)"),
 )
 
 pubkey_option = click.option(
@@ -31,7 +30,7 @@ pubkey_option = click.option(
         "Comma separated list of the url of public keys. "
         "When provided, signatures will be verified to make "
         "sure they match one of the public keys."
-    )
+    ),
 )
 
 
@@ -66,10 +65,7 @@ def _gpg_cmdline(pubkeys: str):
         try:
             gpg = initialize_gpg(pubkeys.split(","))
         except HTTPError as e:
-            raise click.ClickException(
-                f"{e}\n"
-                "Please check the url for the public key"
-            )
+            raise click.ClickException(f"{e}\n" "Please check the url for the public key")
     try:
         yield gpg
     finally:
@@ -94,7 +90,7 @@ def main() -> None:
     help=(
         "Supply apt sources.list file. When provided, all entries"
         "will be parsed for repo urls and their respective dists."
-    )
+    ),
 )
 @file_option
 @pubkey_option
@@ -106,9 +102,9 @@ def apt(recursive: bool, url: str, dists: str, apt_source: str, output: str, pub
             for line in lines:
                 fields = line.split(" ")
                 index: int
-                if (fields[1].startswith("http")):
+                if fields[1].startswith("http"):
                     index = 1
-                elif (fields[2].startswith("http")):
+                elif fields[2].startswith("http"):
                     index = 2
                 else:
                     raise Exception("No URL found")

@@ -1,19 +1,19 @@
-from collections import defaultdict
 import datetime
 import hashlib
 import json
-from pathlib import Path
 import re
 import shutil
 import tempfile
-from uuid import uuid4
-import gnupg
+from collections import defaultdict
+from pathlib import Path
 from typing import List, Optional, Tuple
+from uuid import uuid4
 
 import click
+import gnupg
 import requests
-from requests.exceptions import HTTPError
 from requests.adapters import HTTPAdapter
+from requests.exceptions import HTTPError
 from requests.packages.urllib3.util.retry import Retry
 
 CHUNK_SIZE = 2 * 1024 * 1024
@@ -79,7 +79,7 @@ class RepoErrors:
                 self.errors[repo]["dists"][dist]["state"] = "ok"
 
             if error:
-                error_str = error.replace('\n', ' ').replace('\r', '').rstrip()
+                error_str = error.replace("\n", " ").replace("\r", "").rstrip()
                 if "dist_errors" not in self.errors[repo]["dists"][dist]:
                     self.errors[repo]["dists"][dist]["dist_errors"] = []
 
@@ -92,8 +92,9 @@ class RepoErrors:
 
     def _repo_error_count(self, repo: str):
         if "dists" in self.errors[repo]:
-            return sum([self._dist_error_count(repo, dist)
-                        for dist in self.errors[repo]["dists"].keys()])
+            return sum(
+                [self._dist_error_count(repo, dist) for dist in self.errors[repo]["dists"].keys()]
+            )
 
         return 0
 
@@ -129,8 +130,9 @@ def get_repo_urls(url: str, verify: Optional[str] = None) -> List[str]:
     return [urljoin(url, link) for link in links if ".." not in link]
 
 
-def initialize_gpg(urls: List[str], home_dir: Optional[Path] = None,
-                   verify: Optional[str] = None) -> gnupg.GPG:
+def initialize_gpg(
+    urls: List[str], home_dir: Optional[Path] = None, verify: Optional[str] = None
+) -> gnupg.GPG:
     """
     Initializes a GPG object using the public keys at the input urls.
     Raises HTTPError if a key url is invalid.
@@ -174,10 +176,15 @@ def destroy_gpg(gpg: Optional[gnupg.GPG], keep_folder: bool = False) -> None:
             shutil.rmtree(gpg.gnupghome)
 
 
-def check_signature(repo: str, dist: str, file_url: str,
-                    gpg: gnupg.GPG, errors: RepoErrors,
-                    signature_url: Optional[str] = None,
-                    verify: Optional[str] = None) -> bool:
+def check_signature(
+    repo: str,
+    dist: str,
+    file_url: str,
+    gpg: gnupg.GPG,
+    errors: RepoErrors,
+    signature_url: Optional[str] = None,
+    verify: Optional[str] = None,
+) -> bool:
     """
     Check the signature on a file. If the signature is detached (in a separate file)
     its url can be specified with signature_url. It is expected input gpg already has
@@ -200,15 +207,15 @@ def check_signature(repo: str, dist: str, file_url: str,
 
         if not verified:
             errors.add(
-                repo, dist,
-                f"Signature verification failed for {file_url} " +
-                (f"with the signature {signature_url}" if signature_url else "")
+                repo,
+                dist,
+                f"Signature verification failed for {file_url} "
+                + (f"with the signature {signature_url}" if signature_url else ""),
             )
             return False
     except HTTPError as e:
         errors.add(
-            repo, dist,
-            f"While checking signatures, could not access file at {e.response.url}: {e}"
+            repo, dist, f"While checking signatures, could not access file at {e.response.url}: {e}"
         )
         return False
 
@@ -223,7 +230,7 @@ def verify_checksum(
     expected_checksums: List[Tuple[str, str]],
     errors: RepoErrors,
     error_if_missing: bool = True,
-    verify: Optional[str] = None
+    verify: Optional[str] = None,
 ) -> bool:
     """
     Verify the checksum of a file in a repository. file_loc_in_repo is the
@@ -237,10 +244,7 @@ def verify_checksum(
         response = get_url(urljoin(repo, file_loc_in_repo), verify=verify, stream=True)
     except HTTPError as e:
         if error_if_missing:
-            errors.add(
-                repo, dist,
-                f"Could not access {file_type} file at {e.response.url}: {e}"
-            )
+            errors.add(repo, dist, f"Could not access {file_type} file at {e.response.url}: {e}")
         return not error_if_missing
 
     checksum_algorithms = [elem[0] for elem in expected_checksums]
@@ -254,15 +258,15 @@ def verify_checksum(
     for alg, expected in expected_checksums:
         if multihash.hexdigest(alg) != expected:
             checksum_errors.append(
-                f"{alg.upper()} expected '{expected}' "
-                f"but received '{multihash.hexdigest(alg)}'"
+                f"{alg.upper()} expected '{expected}' " f"but received '{multihash.hexdigest(alg)}'"
             )
 
     if checksum_errors:
         errors.add(
-            repo, dist,
+            repo,
+            dist,
             f"{file_type.capitalize()} checksum mismatch for '{file_loc_in_repo}': "
-            f'[{", ".join(checksum_errors)}]'
+            f'[{", ".join(checksum_errors)}]',
         )
         return False
 
@@ -319,7 +323,7 @@ def get_url(
     url: str,
     stream: bool = False,
     session: Optional[requests.Session] = None,
-    verify: Optional[str] = None
+    verify: Optional[str] = None,
 ) -> requests.Response:
     """Call requests.get() on a url and return the requests.Response."""
     if not session:
