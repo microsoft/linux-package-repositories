@@ -7,14 +7,74 @@ The Microsoft Linux Package Repositories are hosted on PMC ([packages.microsoft.
 ## Configuring the repository on your Linux system 
 
 See how to [host/install/upgrade](https://docs.microsoft.com/en-us/windows-server/administration/linux-package-repository-for-microsoft-software) Microsoft's Linux software using your distribution's standard package management tools.  
+In short you may enable Microsoft's Production repository for your distribution / version by installing the `packages-microsoft-prod.[rpm|deb]` package found at the appropriate [/config/](https://packages.microsoft.com/config/) subdirectory, and there may be additional / alternate repositories you can enable by making the `.repo|.list` files available to your package manager.
 
 Microsoft's Linux Software Repository is comprised of multiple repositories: 
 
-**prods** – These Production repositories (e.g. Ubuntu, Fedora, RHEL, etc.) are designated for packages intended to be used in production. These packages are commercially supported by Microsoft under the terms of the applicable support agreement or program that you have with Microsoft. The prod repositories can be located via hierarchical folder structure (e.g. https://packages.microsoft.com/fedora/36/prod/).
+* **prod** – These Production repositories (e.g. Ubuntu, Fedora, RHEL, etc.) are designated for packages intended to be used in production.
+  These packages are commercially supported by Microsoft under the terms of the applicable support agreement or program that you have with Microsoft.
+  The prod repositories can be located via hierarchical folder structure (e.g. https://packages.microsoft.com/fedora/36/prod/).
 
-**mssql-server** – These repositories contain packages for Microsoft SQL Server on Linux - See also: [SQL Server on Linux.](https://docs.microsoft.com/en-us/sql/linux/sql-server-linux-overview) 
+* **insiders-fast/insiders-slow** – These repositories provide a way to preview upcoming features for software released into the Production repos.
+  Packages generally flow from `insiders-fast` -> `insiders-slow` -> `prod`, but note that some software in the prod repos may not use these repos, and not all versions released here will be promoted to the next stage.
+  _NOTE: Not intended for production use._
 
-*Note*: Packages in the Linux software repositories are subject to the license terms located in the packages. Please read the license terms prior to using the package. Your installation and use of the package constitutes your acceptance of these terms. If you do not agree with the license terms, do not use the package. 
+* **product-specific** – These repositories contain packages for specific products, for example [Microsoft SQL Server on Linux.](https://docs.microsoft.com/en-us/sql/linux/sql-server-linux-overview) 
+  Consult the product's documentation for installation instructions, as there may be additional setup required.
+
+_Note_: Packages in the Linux software repositories are subject to the license terms located in the packages. Please read the license terms prior to using the package. Your installation and use of the package constitutes your acceptance of these terms. If you do not agree with the license terms, do not use the package. 
+
+## Signature Verification
+In general in rpm-based distributions it is common to sign the individual rpms but not the repository metadata, and in deb-based distributions it is common to sign the repository metadata but not the individual debs.
+Microsoft signs **both** the individual packages and the repository metadata for both types of distributions.
+The public keys used for verifying Microsoft signatures can be found at [/keys/](https://packages.microsoft.com/keys/).
+
+### Enabling Repository Metadata Signature Checking on RPM-Based Systems
+Set `repo_gpgcheck=1` in your repo file.
+
+### Verify the Signature of an Individual DEB.
+`debsig-verify` can be used to manually check the signature of an individual DEB.
+`dpkg-sig` is a competing individual-DEB signing standard with a different internal implementation, and it will not work for verifying Microsoft DEBs.
+
+To use `debsig-verify` you must first create a policy file for it and provide Microsoft's public key.
+
+1. Install `debsig-verify`.  
+   ```
+   $ sudo apt install debsig-verify
+   ```
+1. Install the binary formatted (not ascii-armored) version of Microsoft's public key.  
+   ```
+   $ wget https://packages.microsoft.com/keys/microsoft.asc -O /tmp/microsoft.asc
+   $ sudo mkdir -p /usr/share/debsig/keyrings/EB3E94ADBE1229CF/
+   $ sudo gpg -o /usr/share/debsig/keyrings/EB3E94ADBE1229CF/microsoft.gpg --dearmor /tmp/microsoft.asc
+   ```
+1. Create a `debsig-verify` policy file.  
+   ```
+   $ sudo mkdir -p /etc/debsig/policies/EB3E94ADBE1229CF/
+   $ sudo tee /etc/debsig/policies/EB3E94ADBE1229CF/microsoft.pol > /dev/null <<'EOF'
+   <?xml version="1.0"?>
+   <!DOCTYPE Policy SYSTEM "https://www.debian.org/debsig/1.0/policy.dtd">
+   <Policy xmlns="https://www.debian.org/debsig/1.0/">
+
+     <Origin Name="Microsoft" id="EB3E94ADBE1229CF" Description="gpgsecurity@microsoft.com"/>
+
+     <Selection>
+       <Required Type="origin" File="microsoft.gpg" id="EB3E94ADBE1229CF"/>
+     </Selection>
+
+     <Verification MinOptional="0">
+       <Required Type="origin" File="microsoft.gpg" id="EB3E94ADBE1229CF"/>
+     </Verification>
+
+   </Policy>
+   EOF
+   ```
+1. You can now verify individual DEBs.
+   ```
+   $ wget https://packages.microsoft.com/config/ubuntu/22.04/packages-microsoft-prod.deb -O /tmp/packages-microsoft-prod.deb
+   $ debsig-verify /tmp/packages-microsoft-prod.deb
+   debsig: Verified package from 'gpgsecurity@microsoft.com' (Microsoft)
+   ```
 
 ## How can we make PMC service work for you? 
 
