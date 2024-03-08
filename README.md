@@ -24,6 +24,24 @@ Microsoft's Linux Software Repository is comprised of multiple repositories:
 
 _Note_: Packages in the Linux software repositories are subject to the license terms located in the packages. Please read the license terms prior to using the package. Your installation and use of the package constitutes your acceptance of these terms. If you do not agree with the license terms, do not use the package. 
 
+## IP Addresses/Service Tags
+
+The packages.microsoft.com infrastructure uses Azure Front Door to serve a majority of its packages.
+Microsoft publishes a list of Azure IP Ranges with the Front Door IPs listed under the
+`AzureFrontDoor.Frontend` service tag:
+
+<https://www.microsoft.com/en-us/download/details.aspx?id=56519>
+
+SQL packages are served from different regions so depending on your location you will receive
+SQL packages from an IP address in one of the following Service Tags:
+
+* AzureCloud.eastasia
+* AzureCloud.eastus2
+* AzureCloud.northeurope
+* AzureCloud.southeastasia
+* AzureCloud.westeurope
+* AzureCloud.westus2
+
 ## Signature Verification
 In general in rpm-based distributions it is common to sign the individual rpms but not the repository metadata, and in deb-based distributions it is common to sign the repository metadata but not the individual debs.
 Microsoft signs **both** the individual packages and the repository metadata for both types of distributions.
