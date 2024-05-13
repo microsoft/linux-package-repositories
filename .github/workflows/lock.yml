@@ -2,7 +2,7 @@ name: 'Lock Threads'
 
 on:
   schedule:
-    - cron: '0 0 * * *'
+    - cron: '5 5 * * *'
   workflow_dispatch:
 
 permissions:
@@ -17,4 +17,4 @@ jobs:
           github-token: ${{ github.token }}
           process-only: 'issues'
           issue-inactive-days: '30'
-          log-output: true
+          log-output: no
