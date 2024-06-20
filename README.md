@@ -4,6 +4,23 @@
 
 The Microsoft Linux Package Repositories are hosted on PMC ([packages.microsoft.com](https://packages.microsoft.com)) service. The PMC service is intended to support package hosting for customers with clients running a distribution of Linux. Microsoft builds and supports a variety of software products for Linux systems and makes them available via standard APT and YUM package repositories.  
 
+## Report an issue
+
+The package.microsoft.com team (PMC) maintains the infrastructure and metadata at
+packages.microsoft.com.
+Issues reported against this repo should involve problems downloading packages such as network
+connection errors, unexpected http response codes, etc.
+If you are having trouble installing or using a packaging due to missing dependencies, etc. we
+recommend contacting the team that maintains the software.
+Here is a list of some teams along with their issue trackers:
+
+| Team | Issue tracker |
+| -------- | ------- |
+| dotnet  | https://github.com/dotnet/sdk/issues |
+| Microsoft Defender (mdtap) | https://github.com/microsoft/mdatp-xplat/issues |
+| PowerShell | https://github.com/PowerShell/PowerShell/issues |
+
+
 ## Configuring the repository on your Linux system 
 
 See how to [host/install/upgrade](https://docs.microsoft.com/en-us/windows-server/administration/linux-package-repository-for-microsoft-software) Microsoft's Linux software using your distribution's standard package management tools.  
