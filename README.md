@@ -16,10 +16,12 @@ Here is a list of some teams along with their issue trackers:
 
 | Team | Issue tracker |
 | -------- | ------- |
+| Azure Linux (CBL-Mariner) | https://github.com/microsoft/azurelinux |
 | dotnet  | https://github.com/dotnet/sdk/issues |
 | Microsoft Defender (mdtap) | https://github.com/microsoft/mdatp-xplat/issues |
 | Open Management Infrastructure (omi) | https://github.com/microsoft/omi/issues |
 | PowerShell | https://github.com/PowerShell/PowerShell/issues |
+| Visual Studio Code | https://github.com/microsoft/vscode/issues |
 
 
 ## Configuring the repository on your Linux system 
