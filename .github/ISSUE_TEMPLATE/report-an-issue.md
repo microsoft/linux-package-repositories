@@ -1,6 +1,7 @@
 ---
 name: Report an issue
 about: Help us improve our service by reporting issues you are experiencing.
+about: Please check [our docs](https://github.com/microsoft/linux-package-repositories?tab=readme-ov-file#report-an-issue) before reporting an issue.
 labels: ["bug"]
 ---
 
