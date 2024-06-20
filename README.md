@@ -18,6 +18,7 @@ Here is a list of some teams along with their issue trackers:
 | -------- | ------- |
 | dotnet  | https://github.com/dotnet/sdk/issues |
 | Microsoft Defender (mdtap) | https://github.com/microsoft/mdatp-xplat/issues |
+| Open Management Infrastructure (omi) | https://github.com/microsoft/omi/issues |
 | PowerShell | https://github.com/PowerShell/PowerShell/issues |
 
 
