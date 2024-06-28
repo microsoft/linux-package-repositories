@@ -26,9 +26,15 @@ unique_comment_authors = set()
 unique_reaction_authors = set()
 mentions_count = 0
 
-for comment in issue.get_comments(query_date):
-    if comment.user and comment.user.login not in unique_comment_authors:
-        unique_comment_authors.add(comment.user.login)
+unique_comment_authors = {
+    comment.user.login for comment in issue.get_comments(query_date) if comment.user
+}
+
+unique_reaction_authors = {
+    reaction.user.login
+    for reaction in issue.get_reactions()
+    if reaction.user and reaction.created_at > query_date
+}
 
 for timeline_event in issue.get_timeline():
     if (
@@ -36,11 +42,6 @@ for timeline_event in issue.get_timeline():
         and timeline_event.created_at > query_date
     ):
         mentions_count += 1
-
-for reaction in issue.get_reactions():
-    if reaction.user:
-        if reaction.created_at > query_date:
-            unique_reaction_authors.add(reaction.user.login)
 
 data = {
     "unique_comments": len(unique_comment_authors),
