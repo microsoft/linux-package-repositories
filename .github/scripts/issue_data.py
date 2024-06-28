@@ -36,12 +36,13 @@ unique_reaction_authors = {
     if reaction.user and reaction.created_at > query_date
 }
 
-for timeline_event in issue.get_timeline():
-    if (
-        timeline_event.event in ["cross-referenced", "referenced"]
-        and timeline_event.created_at > query_date
-    ):
-        mentions_count += 1
+mentions_count = sum(
+    map(
+        lambda e: e.event in ["cross-referenced", "referenced"]
+        and e.created_at > query_date,
+        issue.get_timeline(),
+    )
+)
 
 data = {
     "unique_comments": len(unique_comment_authors),
