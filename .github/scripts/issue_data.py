@@ -22,10 +22,6 @@ issue = repo.get_issue(number)
 
 query_date = datetime.datetime.now(datetime.UTC) - datetime.timedelta(hours=1)
 
-unique_comment_authors = set()
-unique_reaction_authors = set()
-mentions_count = 0
-
 unique_comment_authors = {
     comment.user.login for comment in issue.get_comments(query_date) if comment.user
 }
