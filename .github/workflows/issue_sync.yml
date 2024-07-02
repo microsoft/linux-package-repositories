@@ -28,8 +28,10 @@ jobs:
       - name: Run python script
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          FULL_NAME: ${{ github.event.repository.full_name }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
         run: |
-          python .github/scripts/issue_data.py "${{ github.event.repository.full_name }}" "${{ github.event.issue.number }}"
+          python .github/scripts/issue_data.py "$FULL_NAME" "$ISSUE_NUMBER"
           echo "COMMENTS=$(cat issue_data.json | jq -r '.unique_comments')" >> $GITHUB_ENV
           echo "REACTIONS=$(cat issue_data.json | jq -r '.unique_reactions')" >> $GITHUB_ENV
           echo "MENTIONS=$(cat issue_data.json | jq -r '.mentions')" >> $GITHUB_ENV
@@ -41,17 +43,25 @@ jobs:
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
       - name: Download Certificate
         uses: azure/cli@v2
+        env:
+          CERTIFICATE_SECRET_ID: ${{ secrets.CERTIFICATE_SECRET_ID }}
         with:
           azcliversion: latest
           inlineScript: |
-            az keyvault secret download --id "${{ secrets.CERTIFICATE_SECRET_ID}}" --file client.pem
+            az keyvault secret download --id "$CERTIFICATE_SECRET_ID" --file client.pem
       - name: Call endpoint
+        env:
+          PAYLOAD_URL: ${{ secrets.ISSUE_PAYLOAD_URL }}
+          ISSUE_TITLE: ${{ github.event.issue.title }}
+          ISSUE_URL: ${{ github.event.issue.html_url }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          STATE: ${{ github.event.issue.state }}
         run: |
-          http --ignore-stdin --cert=client.pem --verbose "${{ secrets.ISSUE_PAYLOAD_URL }}" \
-            issue_title="${{ github.event.issue.title }}" \
-            issue_url="${{ github.event.issue.html_url }}" \
-            issue_number:=${{ github.event.issue.number }} \
-            state="${{ github.event.issue.state }}" \
-            comments:=$COMMENTS \
-            reactions:=$REACTIONS \
-            mentions:=$MENTIONS \
+          http --ignore-stdin --cert=client.pem --verbose "$PAYLOAD_URL" \
+            issue_title="$ISSUE_TITLE" \
+            issue_url="$ISSUE_URL" \
+            issue_number:="$ISSUE_NUMBER" \
+            state="$STATE" \
+            comments:="$COMMENTS" \
+            reactions:="$REACTIONS" \
+            mentions:="$MENTIONS" \
