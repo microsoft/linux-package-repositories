@@ -52,13 +52,11 @@ jobs:
       - name: Call endpoint
         env:
           PAYLOAD_URL: ${{ secrets.ISSUE_PAYLOAD_URL }}
-          ISSUE_TITLE: ${{ github.event.issue.title }}
           ISSUE_URL: ${{ github.event.issue.html_url }}
           ISSUE_NUMBER: ${{ github.event.issue.number }}
           STATE: ${{ github.event.issue.state }}
         run: |
           http --ignore-stdin --cert=client.pem --verbose "$PAYLOAD_URL" \
-            issue_title="$ISSUE_TITLE" \
             issue_url="$ISSUE_URL" \
             issue_number:="$ISSUE_NUMBER" \
             state="$STATE" \
