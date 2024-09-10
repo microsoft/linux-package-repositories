@@ -55,6 +55,8 @@ jobs:
           ISSUE_URL: ${{ github.event.issue.html_url }}
           ISSUE_NUMBER: ${{ github.event.issue.number }}
           STATE: ${{ github.event.issue.state }}
+          EVENT_NAME: ${{ github.event_name }}
+          EVENT_ACTION: ${{ github.event.action }}
         run: |
           http --ignore-stdin --cert=client.pem --verbose "$PAYLOAD_URL" \
             issue_url="$ISSUE_URL" \
@@ -63,3 +65,5 @@ jobs:
             comments:="$COMMENTS" \
             reactions:="$REACTIONS" \
             mentions:="$MENTIONS" \
+            event_name="$EVENT_NAME" \
+            event_action="$EVENT_ACTION"
