@@ -1,5 +1,11 @@
 # Microsoft Linux Package Repositories
 
+> [!IMPORTANT]
+> As of October 17, 2024, packages.microsoft.com has dropped all support for mariner 1.0 packages at the request of the Azure Linux (CBL-Mariner) team.
+> This entailed the deletion of all `cbl-mariner-1.0-.*` repositories along with their associated distribution endpoints.
+> Any 1.0 packages were EOL over a year ago, with support from the Mariner team ending shortly after.
+> If you have any issues pertaining 1.0 packages, please [report an issue](#report-an-issue) to the Azure Linux GitHub repo show below.
+
 ## Overview 
 
 The Microsoft Linux Package Repositories are hosted on PMC ([packages.microsoft.com](https://packages.microsoft.com)) service. The PMC service is intended to support package hosting for customers with clients running a distribution of Linux. Microsoft builds and supports a variety of software products for Linux systems and makes them available via standard APT and YUM package repositories.  
