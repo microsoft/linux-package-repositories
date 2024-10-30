@@ -35,3 +35,11 @@ jobs:
           # Optional category for the results
           # Used to differentiate multiple results for one commit
           category: zizmor
+      - name: Check zizmor results
+        run: |
+          problems=$(zizmor -q --format json . | jq 'length')
+          if (( $problems > 0 )); then
+            echo "Found problem(s) with zizmor:"
+            zizmor --format plain .
+            exit 1
+          fi
