@@ -29,6 +29,11 @@ Here is a list of some teams along with their issue trackers:
 | PowerShell | https://github.com/PowerShell/PowerShell/issues |
 | Visual Studio Code | https://github.com/microsoft/vscode/issues |
 
+## Rate limiting
+
+Requests to packages.microsoft.com are limited to 4,000 requests per 5 minutes.
+Triggering our rate limiting rule will result in 429 responses being returned.
+If you run into issues with rate limiting, you can report a new issue.
 
 ## Configuring the repository on your Linux system 
 
