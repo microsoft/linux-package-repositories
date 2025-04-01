@@ -16,6 +16,8 @@ on:
       dists:
         description: "Distributions (comma separated)"
 
+permissions: {}
+
 jobs:
   validate_repository:
     runs-on: ubuntu-latest
