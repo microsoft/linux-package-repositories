@@ -28,6 +28,7 @@ Here is a list of some teams along with their issue trackers:
 | Open Management Infrastructure (omi) | https://github.com/microsoft/omi/issues |
 | PowerShell | https://github.com/PowerShell/PowerShell/issues |
 | Visual Studio Code | https://github.com/microsoft/vscode/issues |
+| SysmonForLinux | https://github.com/microsoft/SysmonForLinux/issues |
 
 ## Rate limiting
 
