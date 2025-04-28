@@ -28,11 +28,11 @@ jobs:
       repo_type: ${{ github.event.inputs.repo_type }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
         with:
           persist-credentials: false
       - name: Setup Python
-        uses: actions/setup-python@v3
+        uses: actions/setup-python@3542bca2639a428e1796aaa6a2ffef0c0f575566 # v3
       - name: Install repoaudit
         run: |
           cd repoaudit && pip install -e .
