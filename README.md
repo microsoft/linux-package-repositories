@@ -29,6 +29,7 @@ Here is a list of some teams along with their issue trackers:
 | PowerShell | https://github.com/PowerShell/PowerShell/issues |
 | Visual Studio Code | https://github.com/microsoft/vscode/issues |
 | Blobfuse/azcopy | https://github.com/Azure/azure-storage-fuse/issues |
+| SysmonForLinux | https://github.com/microsoft/SysmonForLinux/issues |
 
 ## Rate limiting
 
