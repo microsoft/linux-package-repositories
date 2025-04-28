@@ -16,11 +16,11 @@ jobs:
     environment: prod
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
         with:
           persist-credentials: false
       - name: Setup python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: '3.12'
       - name: Setup dependencies
@@ -38,13 +38,13 @@ jobs:
           echo "REACTIONS=$(cat issue_data.json | jq -r '.unique_reactions')" >> $GITHUB_ENV
           echo "MENTIONS=$(cat issue_data.json | jq -r '.mentions')" >> $GITHUB_ENV
       - name: Azure login
-        uses: azure/login@v2
+        uses: azure/login@a457da9ea143d694b1b9c7c869ebb04ebe844ef5 # v2
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
       - name: Download Certificate
-        uses: azure/cli@v2
+        uses: azure/cli@089eac9d8cc39f5d003e94f8b65efc51076c9cbd # v2
         env:
           CERTIFICATE_SECRET_ID: ${{ secrets.CERTIFICATE_SECRET_ID }}
         with:
