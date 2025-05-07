@@ -147,6 +147,18 @@ To use `debsig-verify` you must first create a policy file for it and provide Mi
    $ debsig-verify /tmp/packages-microsoft-prod.deb
    debsig: Verified package from 'gpgsecurity@microsoft.com' (Microsoft)
    ```
+## Snapshot support [Preview]
+
+Preview support for [repository snapshots](https://packages.microsoft.com/snapshot) is now available on PMC (packages.microsoft.com). With PMC Snapshots, you can explore historical versions of specific Ubuntu repositories. The snapshot feature allows users to view and install packages as they existed at specific points in time, enabling reproducible deployments and helping to identify changes in package behavior over time. By using snapshots, you can recreate environments from any given date and time, which is particularly useful for tracking down when changes or regressions were introduced. Snapshots ensure that a validated environment can be consistently replicated across different stages of development and production, supporting a structured update workflow. This feature is similar to [snapshot.debian.org](https://snapshot.debian.org/) and [snapshot.ubuntu.com](https://snapshot.ubuntu.com/).
+
+### How to create snapshots
+
+Snapshots are created automatically when a repository is updated, provided the previous snapshot is at least 7 days old. Repository administrators can also manually create snapshots as needed.
+
+To access repository snapshots, go to the repository's snapshot path (like `https://packages.microsoft.com/snapshot/ubuntu/24.04/prod/`). Snapshots are identified by a UTC timestamp in their URL, representing the time it was created, such as `https://packages.microsoft.com/snapshot/ubuntu/24.04/prod/20250501T193230Z/` for the 2025-05-01T19:32:30Z UTC state. Snapshots can be accessed using an arbitrary timestamp. When requesting a snapshot with a specific timestamp, if an exact match isn't found, you'll be redirected to the latest snapshot created before that time. Requesting a future or pre-first-snapshot timestamp will return a 404 error.
+
+This feature is **currently in preview and is not recommended for production workloads**. Currently, there is no ETA for moving beyond preview status or for expanding support to additional repositories. For more information, check [Pulp's checkpoint documentation](https://pulpproject.org/pulpcore/docs/user/guides/checkpoint/) and blog [post](https://pulpproject.org/blog/2025/03/11/checkpoint-support---a-journey-towards-predictable-and-consistent-deployments/) which is the basis of the snapshot support in PMC.
+
 
 ## How can we make PMC service work for you? 
 
