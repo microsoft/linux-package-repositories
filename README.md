@@ -87,19 +87,19 @@ This change will bring performance improvements, including better cache efficien
 In general in rpm-based distributions it is common to sign the individual rpms but not the repository metadata, and in deb-based distributions it is common to sign the repository metadata but not the individual debs.
 Microsoft signs **both** the individual packages and the repository metadata for both types of distributions.
 The public keys used for verifying Microsoft signatures can be found at [/keys/](https://packages.microsoft.com/keys/).
-
-> [!IMPORTANT]
-> Starting in the May of 2025, packages.microsoft.com will be introducing a new signing key for some repositories.
-> As [users in the RHEL/Fedora community may be aware](https://github.com/microsoft/linux-package-repositories/issues/47),
-> the existing key (BE1229CF) includes SHA1 signatures.
-> These were commonplace when that key was created, but support for SHA1 (and keys that use it) has been deprecated in recent Linux releases.
-> The introduction of this new signing key represents our effort to keep pace with evolving security standards,
-> and ensure users of these new Linux releases can continue to be supported by packages.microsoft.com.
->
-> Note that this change in policy does not indicate a lack of trust in the existing key.
-> It remains secure and trustworthy, and will continue to be used for existing repos.
-> The packages.microsoft.com team will continue to support our customers with the highest level of security and quality.
-> If any issues arise, do not hesitate to [file an issue](https://github.com/microsoft/linux-package-repositories/).
+Customers are encouraged to use the configuration packages, located under https://packages.microsoft.com/config/, to ensure they acquire the correct key for a given repository.
+ 
+Microsoft-2025.asc
+- Microsoft's latest GPG public key may be downloaded here: [https://packages.microsoft.com/keys/microsoft-2025.asc](https://packages.microsoft.com/keys/microsoft-2025.asc)
+- This key is associated with repositories created after April 2025, including RHEL 10, Debian 13, and Ubuntu 25.10
+- Public Key ID: Microsoft (Release signing) `Microsoft Corporation - General GPG Signer <gpgsign@microsoft.com>`
+- Public Key Fingerprint: `AA86 F75E 427A 19DD 3334 6403 EE4D 7792 F748 182B`
+ 
+Microsoft.asc
+- Microsoft's original public GPG key may be downloaded here: [https://packages.microsoft.com/keys/microsoft.asc](https://packages.microsoft.com/keys/microsoft.asc)
+- This key is associated with repositories created before May 2025, including RHEL 9, Debian 12, and Ubuntu 25.04
+- Public Key ID: Microsoft (Release signing) `gpgsecurity@microsoft.com`
+- Public Key Fingerprint: `BC52 8686 B50D 79E3 39D3 721C EB3E 94AD BE12 29CF`
 
 ### Enabling Repository Metadata Signature Checking on RPM-Based Systems
 Set `repo_gpgcheck=1` in your repo file.
