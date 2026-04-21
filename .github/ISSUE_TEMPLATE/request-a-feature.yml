@@ -1,0 +1,31 @@
+name: Request a feature
+description: Request a new feature or enhancement.
+labels: ["enhancement"]
+body:
+  - type: checkboxes
+    id: acknowledgment
+    attributes:
+      label: Acknowledgment
+      description: Please confirm the following before submitting.
+      options:
+        - label: I have read and understood the [Report an issue](https://github.com/microsoft/linux-package-repositories?tab=readme-ov-file#report-an-issue) section of the README.
+          required: true
+        - label: This request is related to the **packages.microsoft.com infrastructure** and **not** a specific package (e.g. missing dependencies, runtime errors, configuration).
+          required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: Describe the problem you are experiencing
+      description: Please be as specific as possible and include reproduction steps if applicable.
+    validations:
+      required: true
+  - type: textarea
+    id: solution
+    attributes:
+      label: Describe any possible solutions that you would like to see
+      description: Propose any features or solutions that you'd like to see implemented.
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Add any additional details here.
