@@ -12,16 +12,34 @@ The Microsoft Linux Package Repositories are hosted on PMC ([packages.microsoft.
 
 ## Report an issue
 
-The package.microsoft.com team (PMC) maintains the infrastructure and metadata at
-packages.microsoft.com.
-Issues reported against this repo should involve problems downloading packages such as network
-connection errors, unexpected http response codes, etc.
-If you are having trouble installing or using a packaging due to missing dependencies, etc. we
-recommend contacting the team that maintains the software.
-Here is a list of some teams along with their issue trackers:
+The package.microsoft.com team (PMC) maintains the infrastructure and metadata at packages.microsoft.com.
+When reporting an issue, please make sure it is directed to the right place.
+PMC handles issues related to the repository service itself — if your issue is with installing or using the software, please reach out to the product team or customer support instead.
 
-| Team | Issue tracker |
+Examples of issues that should be reported against this repo:
+- Network connection errors
+- Unexpected HTTP response codes
+- Issues fetching repository metadata
+- Checksum mismatch issues
+- GPG signature verification failures
+- Rate limiting (429 responses) — see [Rate limiting](#rate-limiting)
+- DNS resolution failures for packages.microsoft.com
+- TLS/SSL certificate errors
+- Package missing from repository
+
+Issues to report to the product team or customer support (see [How to submit feedback](#how-to-submit-feedback) below):
+- Runtime errors
+- Missing dependencies
+- Version conflicts
+- Package configuration errors
+- Feature requests for specific packages
+- Software bugs or unexpected behavior
+
+### How to submit feedback
+
+| Product | Where to submit issues |
 | -------- | ------- |
+| Microsoft Edge| From Edge, click `...` -> `Help and Feedback` -> `Send Feedback` |
 | Azure Linux (CBL-Mariner) | https://github.com/microsoft/azurelinux/issues |
 | dotnet  | https://github.com/dotnet/sdk/issues |
 | Microsoft Defender (mdtap) | https://github.com/microsoft/mdatp-xplat/issues |
